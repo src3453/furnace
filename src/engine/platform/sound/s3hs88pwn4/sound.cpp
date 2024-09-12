@@ -8,27 +8,30 @@ public:
     
     #include "envelove.cpp"
     #include "ram.cpp"
+    #define MAX(a,b) (((a)>(b))?(a):(b))
     std::random_device rd;
     std::mt19937 mt;
     long long Total_time = 0;
-    double t1[8] = {0,0,0,0,0,0,0,0};
-    double t2[8] = {0,0,0,0,0,0,0,0};
-    double t3[8] = {0,0,0,0,0,0,0,0};
-    double t4[8] = {0,0,0,0,0,0,0,0};
-    double t5[8] = {0,0,0,0,0,0,0,0};
-    double t6[8] = {0,0,0,0,0,0,0,0};
-    double t7[8] = {0,0,0,0,0,0,0,0};
-    double t8[8] = {0,0,0,0,0,0,0,0};
-    double twt[4] = {0,0,0,0};
-    double in1[4]  = {0.0,0.0,0.0,0.0};
-    double in2[4]  = {0.0,0.0,0.0,0.0};
-    double out1[4] = {0.0,0.0,0.0,0.0};
-    double out2[4] = {0.0,0.0,0.0,0.0};
+    int t1[8] = {0,0,0,0,0,0,0,0};
+    int t2[8] = {0,0,0,0,0,0,0,0};
+    int t3[8] = {0,0,0,0,0,0,0,0};
+    int t4[8] = {0,0,0,0,0,0,0,0};
+    int t5[8] = {0,0,0,0,0,0,0,0};
+    int t6[8] = {0,0,0,0,0,0,0,0};
+    int t7[8] = {0,0,0,0,0,0,0,0};
+    int t8[8] = {0,0,0,0,0,0,0,0};
+    unsigned long long twt[4] = {0,0,0,0};
+    float in1[4]  = {0.0,0.0,0.0,0.0};
+    float in2[4]  = {0.0,0.0,0.0,0.0};
+    float out1[4] = {0.0,0.0,0.0,0.0};
+    float out2[4] = {0.0,0.0,0.0,0.0};
+    float feedback = 0;
     int vols[64] = {};
+    double previous[12] = {0.0};
     std::vector<int> gateTick = {0,0,0,0,0,0,0,0};
     std::vector<Byte> reg,regenvl,regwt;
     std::vector<int> noise;
-    std::vector<std::vector<double>> sintable;
+    std::vector<std::vector<signed char>> sintable;
     std::vector<EnvGenerator> envl;
     EnvGenerator _envl;
     double prev = 0;
@@ -39,13 +42,15 @@ public:
     };
     
     #define S3HS_SAMPLE_FREQ 48000
+    #define SINTABLE_LENGTH 256
+    #define PHASE_RESOLUTION 16
 
     double sind(double theta) {
-        return sin(theta*2*M_PI);
+        return sin(((double)((int)((theta)*SINTABLE_LENGTH))/SINTABLE_LENGTH)*2*M_PI);
     }
 
     double modulate(double theta, int wf) {
-        return sintable.at(wf).at((int)((theta*256))&0xff);
+        return sintable.at(wf).at((int)(((theta/S3HS_SAMPLE_FREQ)*256))&0xff);
     }
 
     double generateFMWave(double t1, double v1, double t2, double v2, double t3, double v3, double t4, double v4, int w1, int w2, int w3, int w4) {
@@ -55,21 +60,45 @@ public:
 
     }
 
-    double generateHSWave(int mode, double t1, double v1, double t2, double v2, double t3, double v3, double t4, double v4, double t5, double v5, double t6, double v6, double t7, double v7, double t8, double v8, int w1, int w2, int w3, int w4, int w5, int w6, int w7, int w8) {
+    double generateHSWave(int mode, double t1, double v1, double t2, double v2, double t3, double v3, double t4, double v4, double t5, double v5, double t6, double v6, double t7, double v7, double t8, double v8, int w1, int w2, int w3, int w4, int w5, int w6, int w7, int w8, float fb, int ch, double* result) {
         double value = 0;
+        double phase = 0;
+        double phase2 = 0;
+        double phase3 = 0;
+        double phase4 = 0;
+        double phase5 = 0;
+        double phase6 = 0;
+        double phase7 = 0;
+        feedback = (fmod(((result[ch]/255/127)+1.0),2.0)-1.0)*fb;
         switch (mode)
         {
         case 0:
             value = (modulate(t1,w1)*v1+modulate(t2,w2)*v2+modulate(t3,w3)*v3+modulate(t4,w4)*v4+
-                    modulate(t5,w5)*v5+modulate(t6,w6)*v6+modulate(t7,w7)*v7+modulate(t8,w8)*v8)*255*127; //Additive
+                    modulate(t5,w5)*v5+modulate(t6,w6)*v6+modulate(t7,w7)*v7+modulate(t8,w8)*v8+feedback)*255*127; //Additive
             break;
         case 1:
-            value = (modulate(t1,w1)*v1-modulate(t2,w2)*v2-modulate(t3,w3)*v3-modulate(t4,w4)*v4-
-                    modulate(t5,w5)*v5-modulate(t6,w6)*v6-modulate(t7,w7)*v7-modulate(t8,w8)*v8)*255*127; //Subtract
+            phase = (modulate(t5,w5)*v5+modulate(t6,w6)*v6+modulate(t7,w7)*v7+modulate(t8,w8)*v8+feedback)*4*S3HS_SAMPLE_FREQ;
+            value = (modulate(t1+phase,w1)*v1+modulate(t2+phase,w2)*v2+modulate(t3+phase,w3)*v3+modulate(t4+phase,w4)*v4)*255*127; //FM2op
             break;
         case 2:
             value = ((modulate(t1,w1)*v1+modulate(t2,w2)*v2+modulate(t3,w3)*v3+modulate(t4,w4)*v4)*
-                    (modulate(t5,w5)*v5+modulate(t6,w6)*v6+modulate(t7,w7)*v7+modulate(t8,w8)*v8))*255*127; //RingMod
+                    (modulate(t5,w5)*v5+modulate(t6,w6)*v6+modulate(t7,w7)*v7+modulate(t8,w8)*v8)+feedback)*255*127; //RingMod
+            break;
+        case 3:
+            phase  = (modulate(t7,w7)*v7+modulate(t8,w8)*v8)*4*S3HS_SAMPLE_FREQ;
+            phase2 = (modulate(t5+phase,w5)*v5+modulate(t6+phase,w6)*v6)*4*S3HS_SAMPLE_FREQ;
+            phase3 = (modulate(t3+phase2,w3)*v3+modulate(t4+phase2,w4)*v4+feedback)*4*S3HS_SAMPLE_FREQ;
+            value = (modulate(t1+phase3,w1)*v1+modulate(t2+phase3,w2)*v2)*255*127; //FM4op
+            break;
+        case 4:
+            phase = (modulate(t8,w8)*v8)*4*S3HS_SAMPLE_FREQ;
+            phase2 = (modulate(t7+phase,w7)*v7)*4*S3HS_SAMPLE_FREQ;
+            phase3 = (modulate(t6+phase2,w6)*v6)*4*S3HS_SAMPLE_FREQ;
+            phase4 = (modulate(t5+phase3,w5)*v5)*4*S3HS_SAMPLE_FREQ;
+            phase5 = (modulate(t4+phase4,w4)*v4)*4*S3HS_SAMPLE_FREQ;
+            phase6 = (modulate(t3+phase5,w3)*v3)*4*S3HS_SAMPLE_FREQ;
+            phase7 = (modulate(t2+phase6,w2)*v2+feedback)*4*S3HS_SAMPLE_FREQ;
+            value = (modulate(t1+phase7,w1)*v1)*255*127; //FM8op
             break;
         default:
             break;
@@ -124,32 +153,32 @@ public:
             }
         }
         
-        for(int ch=0; ch < 8; ch++) {
-            for (int opNum=0; opNum < 8; opNum++) {
-                applyEnveloveToRegisters(reg,regenvl,opNum,ch,((double)len/(double)S3HS_SAMPLE_FREQ));
-            }
-        }
         for (i = 0; i < framesize; i++) {
             double result[12] = {0};
             for(int ch=0; ch < 8; ch++) {
+                for (int opNum=0; opNum < 8; opNum++) {
+                    applyEnveloveToRegisters(reg,regenvl,opNum,ch,((double)1/(double)S3HS_SAMPLE_FREQ));
+                }
+            }
+            for(int ch=0; ch < 8; ch++) {
                 int addr = 64*ch;
-                double f1 = ((double)reg.at(addr+0).toInt()*256+reg.at(addr+1).toInt());
-                t1[ch] = t1[ch] + (f1/S3HS_SAMPLE_FREQ);
-                t2[ch] = t2[ch] + f1*(((double)reg.at(addr+2).toInt()*256+reg.at(addr+3).toInt())/4096)/S3HS_SAMPLE_FREQ;
-                t3[ch] = t3[ch] + f1*(((double)reg.at(addr+4).toInt()*256+reg.at(addr+5).toInt())/4096)/S3HS_SAMPLE_FREQ;
-                t4[ch] = t4[ch] + f1*(((double)reg.at(addr+6).toInt()*256+reg.at(addr+7).toInt())/4096)/S3HS_SAMPLE_FREQ;
-                t5[ch] = t5[ch] + f1*(((double)reg.at(addr+8).toInt()*256+reg.at(addr+9).toInt())/4096)/S3HS_SAMPLE_FREQ;
-                t6[ch] = t6[ch] + f1*(((double)reg.at(addr+10).toInt()*256+reg.at(addr+11).toInt())/4096)/S3HS_SAMPLE_FREQ;
-                t7[ch] = t7[ch] + f1*(((double)reg.at(addr+12).toInt()*256+reg.at(addr+13).toInt())/4096)/S3HS_SAMPLE_FREQ;
-                t8[ch] = t8[ch] + f1*(((double)reg.at(addr+14).toInt()*256+reg.at(addr+15).toInt())/4096)/S3HS_SAMPLE_FREQ;
-                double v1 = (double)(vols[ch*8+0])/256;
-                double v2 = (double)(vols[ch*8+1])/256;
-                double v3 = (double)(vols[ch*8+2])/256;
-                double v4 = (double)(vols[ch*8+3])/256;
-                double v5 = (double)(vols[ch*8+4])/256;
-                double v6 = (double)(vols[ch*8+5])/256;
-                double v7 = (double)(vols[ch*8+6])/256;
-                double v8 = (double)(vols[ch*8+7])/256;
+                int f1 = (int)((double)reg.at(addr+0).toInt()*256+reg.at(addr+1).toInt())*PHASE_RESOLUTION;
+                t1[ch] = t1[ch] + f1;
+                t2[ch] = t2[ch] + (int)(double)f1*(((double)reg.at(addr+2).toInt()*256+reg.at(addr+3).toInt())/4096);
+                t3[ch] = t3[ch] + (int)(double)f1*(((double)reg.at(addr+4).toInt()*256+reg.at(addr+5).toInt())/4096);
+                t4[ch] = t4[ch] + (int)(double)f1*(((double)reg.at(addr+6).toInt()*256+reg.at(addr+7).toInt())/4096);
+                t5[ch] = t5[ch] + (int)(double)f1*(((double)reg.at(addr+8).toInt()*256+reg.at(addr+9).toInt())/4096);
+                t6[ch] = t6[ch] + (int)(double)f1*(((double)reg.at(addr+10).toInt()*256+reg.at(addr+11).toInt())/4096);
+                t7[ch] = t7[ch] + (int)(double)f1*(((double)reg.at(addr+12).toInt()*256+reg.at(addr+13).toInt())/4096);
+                t8[ch] = t8[ch] + (int)(double)f1*(((double)reg.at(addr+14).toInt()*256+reg.at(addr+15).toInt())/4096);
+                double v1 = (double)(vols[ch*8+0])/32768;
+                double v2 = (double)(vols[ch*8+1])/32768;
+                double v3 = (double)(vols[ch*8+2])/32768;
+                double v4 = (double)(vols[ch*8+3])/32768;
+                double v5 = (double)(vols[ch*8+4])/32768;
+                double v6 = (double)(vols[ch*8+5])/32768;
+                double v7 = (double)(vols[ch*8+6])/32768;
+                double v8 = (double)(vols[ch*8+7])/32768;
                 int w1 = reg.at(addr+24).toInt()>>4;
                 int w2 = reg.at(addr+24).toInt()&0xf;
                 int w3 = reg.at(addr+25).toInt()>>4;
@@ -159,44 +188,102 @@ public:
                 int w7 = reg.at(addr+27).toInt()>>4;
                 int w8 = reg.at(addr+27).toInt()&0xf;
                 int mode = reg.at(addr+0x1c).toInt();
-                result[ch] += generateHSWave(mode,t1[ch],v1,t2[ch],v2,t3[ch],v3,t4[ch],v4,t5[ch],v5,t6[ch],v6,t7[ch],v7,t8[ch],v8,w1,w2,w3,w4,w5,w6,w7,w8);
+                float fb = ((float)(reg.at(addr+0x1f).toInt())/255-0.5)*2;
+                result[ch] += generateHSWave(mode,
+                (double)(t1[ch])/PHASE_RESOLUTION,v1,
+                (double)(t2[ch])/PHASE_RESOLUTION,v2,
+                (double)(t3[ch])/PHASE_RESOLUTION,v3,
+                (double)(t4[ch])/PHASE_RESOLUTION,v4,
+                (double)(t5[ch])/PHASE_RESOLUTION,v5,
+                (double)(t6[ch])/PHASE_RESOLUTION,v6,
+                (double)(t7[ch])/PHASE_RESOLUTION,v7,
+                (double)(t8[ch])/PHASE_RESOLUTION,v8,
+                w1,w2,w3,w4,w5,w6,w7,w8,fb,ch,previous);
+                previous[ch] = result[ch];
                 //std::cout << v1 << std::endl;
             }
             
             for(int ch=0; ch<4; ch++) {
-                double ft = ((double)regwt.at(ch*48+0).toInt()*256+regwt.at(ch*48+1).toInt());
-                twt[ch] = twt[ch] + (ft/S3HS_SAMPLE_FREQ)*32;
+                int ft = (regwt.at(ch*48+0).toInt()*256+regwt.at(ch*48+1).toInt())*PHASE_RESOLUTION;
+                twt[ch] = twt[ch] + ft;
                 double vt = ((double)regwt.at(ch*48+2).toInt())/255;
                 int val = 0;
+                double phase = (double)(twt[ch])/PHASE_RESOLUTION/S3HS_SAMPLE_FREQ*32;
+                //std::cout << twt[ch] << std::endl;
                 if (regwt.at(ch*48+3).toInt() == 1) {
-                    val = regwt.at(16+48*ch+((int)twt[ch]%32)).toInt();
-                    if ((int)(twt[ch]*2)%2 == 0) {
+                    val = regwt.at(16+48*ch+((int)phase%32)).toInt();
+                    if ((int)(phase*2)%2 == 0) {
                         val /= 16;
                     } else {
                         val %= 16;
                     }
                     val *= 16;
                 } else if(regwt.at(ch*48+3).toInt() == 2) {
-                    val = noise.at(((int)twt[ch]%65536))*255;
+                    val = noise.at(((int)phase%65536))*255;
                 } else if(regwt.at(ch*48+3).toInt() == 3) {
-                    val = noise.at(((int)twt[ch]%64))*255;
+                    val = noise.at(((int)phase%64))*255;
                 } else if(regwt.at(ch*48+3).toInt() == 0) {
-                    if (pcm_addr[ch]+(int)twt[ch] > pcm_len[ch] && pcm_loop_start[ch] < pcm_len[ch] && pcm_loop_start[ch] != 0) {
-                        val = ram_peek(ram,pcm_addr[ch]+((int)twt[ch]%(pcm_len[ch]-pcm_loop_start[ch]))+(pcm_addr[ch]-pcm_loop_start[ch])).toInt();
+                    if (pcm_addr[ch]+(int)phase > pcm_len[ch] && pcm_loop_start[ch] < pcm_len[ch] && pcm_loop_start[ch] != 0) {
+                        val = ram_peek(ram,pcm_addr[ch]+((int)phase%(pcm_len[ch]-pcm_loop_start[ch]))+(pcm_addr[ch]-pcm_loop_start[ch])).toInt();
                     } else {
-                        val = ram_peek(ram,std::min(pcm_addr[ch]+(int)twt[ch],pcm_len[ch])).toInt();
+                        val = ram_peek(ram,std::min(pcm_addr[ch]+(int)phase,pcm_len[ch])).toInt();
                     }
-                    //std::cout << twt[ch] << std::endl;
+                    //std::cout << phase << std::endl;
                 }
                 val -= 128;
-                /**double omega = 2.0 * 3.14159265 * ((double)regwt.at(ch*48+5).toInt()+1)*32 / S3HS_SAMPLE_FREQ;
-                double alpha = sin(omega) / (2.0 * 1.5);
-                double a0 =  1.0 + alpha;
-                double a1 = -2.0 * cos(omega);
-                double a2 =  1.0 - alpha;
-                double b0 = (1.0 - cos(omega)) / 2.0;
-                double b1 =  1.0 - cos(omega);
-                double b2 = (1.0 - cos(omega)) / 2.0;
+                double omega, alpha, a0, a1, a2, b0, b1, b2;
+                switch (regwt.at(ch*48+4).toInt())
+                {
+                case 0:
+                    omega = 2.0 * 3.14159265 * ((double)regwt.at(ch*48+5).toInt()+1)*32 / S3HS_SAMPLE_FREQ;
+                    alpha = sin(omega) / (2.0 * 1.0+((double)regwt.at(ch*48+6).toInt()+1)/16);
+                    a0 =  1.0 + alpha;
+                    a1 = -2.0 * cos(omega);
+                    a2 =  1.0 - alpha;
+                    b0 = (1.0 - cos(omega)) / 2.0;
+                    b1 =  1.0 - cos(omega);
+                    b2 = (1.0 - cos(omega)) / 2.0;
+                    break;
+                case 1:
+                    omega = 2.0f * 3.14159265f *  ((double)regwt.at(ch*48+5).toInt()+1)*32 / S3HS_SAMPLE_FREQ;
+                    alpha = sin(omega) / (2.0f * 1.0+((double)regwt.at(ch*48+6).toInt()+1)/16);
+                    a0 =   1.0f + alpha;
+                    a1 =  -2.0f * cos(omega);
+                    a2 =   1.0f - alpha;
+                    b0 =  (1.0f + cos(omega)) / 2.0f;
+                    b1 = -(1.0f + cos(omega));
+                    b2 =  (1.0f + cos(omega)) / 2.0f;
+                    break;
+                case 2:
+                    omega = 2.0f * 3.14159265f * ((double)regwt.at(ch*48+5).toInt()+1)*32 / S3HS_SAMPLE_FREQ;
+                    alpha = sin(omega) * sinh(log(2.0f) / 2.0 * ((double)regwt.at(ch*48+6).toInt()+1)/256) * omega / sin(omega);
+                    a0 =  1.0f + alpha;
+                    a1 = -2.0f * cos(omega);
+                    a2 =  1.0f - alpha;
+                    b0 =  alpha;
+                    b1 =  0.0f;
+                    b2 = -alpha;
+                case 3:
+                    omega = 2.0f * 3.14159265f *  ((double)regwt.at(ch*48+5).toInt()+1)*32 / S3HS_SAMPLE_FREQ;
+                    alpha = sin(omega) * sinh(log(2.0f) / 2.0 * ((double)regwt.at(ch*48+6).toInt()+1)/256) * omega / sin(omega);
+                    a0 =  1.0f + alpha;
+                    a1 = -2.0f * cos(omega);
+                    a2 =  1.0f - alpha;
+                    b0 =  1.0f;
+                    b1 = -2.0f * cos(omega);
+                    b2 =  1.0f;
+                default:
+                    omega = 2.0 * 3.14159265 * ((double)regwt.at(ch*48+5).toInt()+1)*32 / S3HS_SAMPLE_FREQ;
+                    alpha = sin(omega) / (2.0 * 1.0+((double)regwt.at(ch*48+6).toInt()+1)/64);
+                    a0 =  1.0 + alpha;
+                    a1 = -2.0 * cos(omega);
+                    a2 =  1.0 - alpha;
+                    b0 = (1.0 - cos(omega)) / 2.0;
+                    b1 =  1.0 - cos(omega);
+                    b2 = (1.0 - cos(omega)) / 2.0;
+                    break;
+                }
+                
                 double output = b0/a0*(double)val+b1/a0*in1[ch]+b2/a0*in2[ch]-a1/a0*out1[ch]-a2/a0*out2[ch];
                 in2[ch]  = in1[ch];
                 in1[ch]  = val; 
@@ -206,8 +293,8 @@ public:
                     result[ch+8] += (double)(val)*255*vt;
                 } else {
                     result[ch+8] += std::min(std::max((double)output*255*vt,-32768.0),32767.0);
-                }**/
-                result[ch+8] += (double)(val)*255*vt;
+                }
+                //result[ch+8] += (double)(val)*255*vt;
             }
             
             for(int ch=0; ch<12; ch++) {
@@ -239,22 +326,28 @@ public:
         
         envl.resize(64,_envl);
         noise.resize(65536,0);
-        std::vector<double> _sintable;
+        std::vector<signed char> _sintable;
         _sintable.resize(256,0);
         sintable.resize(16,_sintable);
         for (int i=0;i<65536;i++) {
             noise[i] = mt()%2;
         }
         for (int i=0; i<256; i++) {
-            sintable.at(0).at(i) = sind((double)i/256);
-            sintable.at(1).at(i) = std::max(0.0,sind((double)i/256));
-            sintable.at(4).at(i) = i<128?(double)i/64-1.0:(double)i/-64+3.0;
-            sintable.at(5).at(i) = (double)i/128-1.0;
+            sintable.at(0).at(i) = (signed char)(sind((double)i/256)*127);
+            sintable.at(1).at(i) = (signed char)(std::max(0.0,sind((double)i/256))*127);
+            double qi = (double)((int)((double)i/(256/SINTABLE_LENGTH))*256/SINTABLE_LENGTH);
+            sintable.at(4).at(i) = (signed char)((i<128?(double)qi/64-1.0:(double)qi/-64+3.0)*127);
+            sintable.at(5).at(i) = (signed char)(((double)qi/128-1.0)*127);
+            sintable.at(7).at(i) = (signed char)(MAX(i<128?(double)qi/64-1.0:(double)qi/-64+3.0,0.0)*127);
+            sintable.at(8).at(i) = (signed char)(MAX((double)qi/128-1.0,0.0)*127);
+            //sintable.at(9).at(i) = (double)(mt()%2*2-1);
+            sintable.at(9).at(i) = (signed char)((double)(mt()%2)*127);
             if (i<128) {
-                sintable.at(2).at(i) = sind((double)i/128);
-                sintable.at(3).at(i) = 1.0;
+                sintable.at(2).at(i) = (signed char)(sind((double)i/128)*127);
+                sintable.at(3).at(i) = 127;
+                sintable.at(6).at(i) = 127;
             } else {
-                sintable.at(3).at(i) = -1.0;
+                sintable.at(3).at(i) = -128;
             }
         }
         
@@ -267,6 +360,14 @@ public:
         for (int i=0;i<8;i++) {
             envl.at((size_t)(ch*8+i)).reset(EnvGenerator::State::Attack); 
         }
+        t1[ch] = 0;
+        t2[ch] = 0;
+        t3[ch] = 0;
+        t4[ch] = 0;
+        t5[ch] = 0;
+        t6[ch] = 0;
+        t7[ch] = 0;
+        t8[ch] = 0;
     }
 
     void wtSync(int ch) {

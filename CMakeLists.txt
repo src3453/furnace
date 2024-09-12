@@ -796,6 +796,8 @@ src/engine/platform/dummy.cpp
 
 src/engine/platform/cpt100.cpp
 src/engine/platform/s3hs.cpp
+src/engine/platform/3fs44u.cpp
+
 
 src/engine/export/abstract.cpp
 src/engine/export/amigaValidation.cpp

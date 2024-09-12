@@ -1,3 +1,6 @@
+#ifndef _H_CPT100_SOUND
+#define _H_CPT100_SOUND
+
 #include <math.h>
 #include <random>
 
@@ -33,9 +36,10 @@ public:
     };
     
     #define CPT100_SAMPLE_FREQ 48000
+    #define SINTABLE_LENGTH 256
 
     double sind(double theta) {
-        return sin(theta*2*M_PI);
+        return sin(((double)((int)((theta)*SINTABLE_LENGTH))/SINTABLE_LENGTH)*2*M_PI);
     }
 
     double modulate(double theta, int wf) {
@@ -93,14 +97,14 @@ public:
             }
         }
         
-        for(int ch=0; ch < 4; ch++) {
-            for (int opNum=0; opNum < 4; opNum++) {
-                applyEnveloveToRegisters(reg,regenvl,opNum,ch,((double)len/(double)CPT100_SAMPLE_FREQ));
-                ram_poke(ram,0x10000+16*ch+opNum+5,reg.at(16*ch+opNum+5));
-            }
-        }
         for (i = 0; i < framesize; i++) {
             double result[6] = {0};
+            for(int ch=0; ch < 4; ch++) {
+                for (int opNum=0; opNum < 4; opNum++) {
+                    applyEnveloveToRegisters(reg,regenvl,opNum,ch,((double)1/(double)CPT100_SAMPLE_FREQ));
+                    ram_poke(ram,0x10000+16*ch+opNum+5,reg.at(16*ch+opNum+5));
+                }
+            }
             for(int ch=0; ch < 4; ch++) {
                 int addr = 16*ch;
                 double f1 = ((double)reg.at(addr+0).toInt()*256+reg.at(addr+1).toInt());
@@ -189,8 +193,9 @@ public:
         for (int i=0; i<256; i++) {
             sintable.at(0).at(i) = sind((double)i/256);
             sintable.at(1).at(i) = std::max(0.0,sind((double)i/256));
-            sintable.at(4).at(i) = i<128?(double)i/64-1.0:(double)i/-64+3.0;
-            sintable.at(5).at(i) = (double)i/128-1.0;
+            double qi = (double)((int)((double)i/(256/SINTABLE_LENGTH))*256/SINTABLE_LENGTH);
+            sintable.at(4).at(i) = i<128?(double)qi/64-1.0:(double)qi/-64+3.0;
+            sintable.at(5).at(i) = (double)qi/128-1.0;
             if (i<128) {
                 sintable.at(2).at(i) = sind((double)i/128);
                 sintable.at(3).at(i) = 1.0;
@@ -208,6 +213,10 @@ public:
         for (int i=0;i<4;i++) {
             envl.at((size_t)(ch*4+i)).reset(EnvGenerator::State::Attack); 
         }
+        t1[ch] = 0;
+        t2[ch] = 0;
+        t3[ch] = 0;
+        t4[ch] = 0;
     }
 
     void wtSync(int ch) {
@@ -215,3 +224,5 @@ public:
     }
     
 };
+
+#endif // _H_CPT100_SOUND

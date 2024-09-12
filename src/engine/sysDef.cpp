@@ -2144,12 +2144,23 @@ void DivEngine::registerSystems() {
     SID2PostEffectHandlerMap
   );
 
+  sysDefs[DIV_SYSTEM_3FS44U]=new DivSysDef(
+    "3FS44U", NULL, 0xfb, 0, 4, false, true, 0, false, 0, 0, 0,
+    "Basically CPT100, but lack of wavetable channels.",
+    {"FM 1", "FM 2", "FM 3", "FM 4"},
+    {"FM1", "FM2", "FM3", "FM4"},
+    {DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM},
+    {DIV_INS_CPT100, DIV_INS_CPT100, DIV_INS_CPT100, DIV_INS_CPT100},
+    {DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL},
+    waveOnlyEffectHandlerMap
+  );
+
   sysDefs[DIV_SYSTEM_S3HS]=new DivSysDef(
-    "3HS88PWN4", NULL, 0xfc, 0, 12, false, true, 0, false, 0, 64, 16,
+    "3HS88PWN4", NULL, 0xfc, 0, 12, false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 64, 16,
     "src3453's another fantasy sound chip. It supports harmonic synthesize.",
     {"HS 1", "HS 2", "HS 3", "HS 4", "HS 5", "HS 6", "HS 7", "HS 8", "PCM 1", "PCM 2", "PCM 3", "PCM 4"},
     {"H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "P1", "P2", "P3", "P4"},
-    {DIV_CH_OP, DIV_CH_OP, DIV_CH_OP, DIV_CH_OP, DIV_CH_OP, DIV_CH_OP, DIV_CH_OP, DIV_CH_OP, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM},
+    {DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM},
     {DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS},
     {DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA},
     waveOnlyEffectHandlerMap
@@ -2165,7 +2176,7 @@ void DivEngine::registerSystems() {
   );
 
   sysDefs[DIV_SYSTEM_CPT100]=new DivSysDef(
-    "CPT100", NULL, 0xfe, 0, 6, false, true, 0, false, 0, 32, 256,
+    "CPT100", NULL, 0xfe, 0, 6, false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 32, 256,
     "src3453's fantasy console is now ported to furnace! Please enjoy!",
     {"FM 1", "FM 2", "FM 3", "FM 4", "Channel 5", "Channel 6"},
     {"FM1", "FM2", "FM3", "FM4", "CH5", "CH6"},

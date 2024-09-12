@@ -3061,13 +3061,24 @@ void FurnaceGUI::initSystemPresets() {
       }
   );
   ENTRY(
-    "CPT100", {
+    "CPT100 (3SGUC1)", {
       CH(DIV_SYSTEM_CPT100, 1.0f, 0, "")
+    }
+  );
+  ENTRY(
+    "3FS44U", {
+      CH(DIV_SYSTEM_3FS44U, 1.0f, 0, "")
     }
   );
   ENTRY(
     "3HS88PWN4", {
       CH(DIV_SYSTEM_S3HS, 1.0f, 0, "")
+    }
+  );
+  ENTRY(
+    "CPT200 (3SGUC2)", {
+      CH(DIV_SYSTEM_S3HS, 1.0f, 0.0f, ""),  // 3HS88PWN4
+      CH(DIV_SYSTEM_3FS44U, 1.0f, 0.0f, "") // 3FS44U
     }
   );
   CATEGORY_END;

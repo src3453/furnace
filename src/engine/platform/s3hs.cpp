@@ -5,7 +5,7 @@
 
 
 #define CHIP_FREQBASE 48000
-#define rWrite(a,v) if (!skipRegisterWrites) {doWrite(a,v); if(a>=0x400000 && a<0x400400) {regPool[(a-0x400000)]=v;} if (dumpWrites) {addWrite(a,v);} }
+#define rWrite(a,v) if (!skipRegisterWrites) {if(a>=0x400000 && a<0x4002C0) {doWrite(a,v); regPool[((a-0x400000)%0x2C0)]=v;} if (dumpWrites && false) {addWrite(a,v);} }
 
 unsigned int s3hs_chanaddrs_freq[12] = {0x400000,0x400040,0x400080,0x4000c0,0x400100,0x400140,0x400180,0x4001c0,0x400200,0x400230,0x400260,0x400290};
 unsigned int s3hs_chanaddrs_volume[12] = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x400202,0x400232,0x400262,0x400292};
@@ -77,11 +77,13 @@ void DivPlatformS3HS::tick(bool sysTick) {
     
     if (chan[i].std.vol.had) {
       if(i>=8 && i<=11) {
-      chan[i].outVol=(MIN(255,chan[i].std.vol.val)*(chan[i].vol))/(256);
-      if (chan[i].outVol<0) chan[i].outVol=0;
-      if (chan[i].outVol>255) chan[i].outVol=255;
+        chan[i].outVol=(MIN(255,chan[i].std.vol.val)*(chan[i].vol))/(256);
+        if (chan[i].outVol<0) chan[i].outVol=0;
+        if (chan[i].outVol>255) chan[i].outVol=255;
       } else {
-        chan[i].outVol=parent->getIns(chan[i].ins,DIV_INS_S3HS)->cpt.op1v;
+        chan[i].outVol=(MIN(255,chan[i].std.vol.val)*parent->getIns(chan[i].ins,DIV_INS_S3HS)->cpt.op1v)/(256);
+        if (chan[i].outVol<0) chan[i].outVol=0;
+        if (chan[i].outVol>255) chan[i].outVol=255;
       }
       if (chan[i].resVol!=chan[i].outVol) {
         chan[i].resVol=chan[i].outVol;
@@ -117,19 +119,29 @@ void DivPlatformS3HS::tick(bool sysTick) {
     }
     if (chan[i].std.duty.had) {
       if (i>=8 && i<=11) {
-        rWrite(0x40008a+i-4,chan[i].std.duty.val*2);
+        rWrite(0x400203+48*(i-8),chan[i].std.duty.val+1);
       }
     }
     if (chan[i].std.ex1.had) {
       if (i>=8 && i<=11) {
-        rWrite(0x40008c+i-4,chan[i].std.ex1.val);
+        rWrite(0x400204+(i-8)*0x30,chan[i].std.ex1.val);
+      }
+    }
+    if (chan[i].std.ex2.had) {
+      if (i>=8 && i<=11) {
+        rWrite(0x400205+(i-8)*0x30,chan[i].std.ex2.val);
+      }
+    }
+    if (chan[i].std.ex3.had) {
+      if (i>=8 && i<=11) {
+        rWrite(0x400206+(i-8)*0x30,chan[i].std.ex3.val);
       }
     }
     if (chan[i].waveUpdated) {
       if (i>=8 && i<=11)
       {
         for (int j=0;j<32;j++) {
-        //rWrite(0x400090+32*(i-4)+j,chan[i].ws.output[j]);
+        rWrite(0x400210+0x30*(i-8)+j,chan[i].ws.output[j*2]*16+chan[i].ws.output[j*2+1]);
         }
       }
       if (chan[i].active) {
@@ -191,12 +203,19 @@ void DivPlatformS3HS::tick(bool sysTick) {
             }
           }
         }
+        rWrite(0x400204+(i-8)*0x30,chan[i].std.ex1.val);
       }
     }
     if (chan[i].pcm && i>=8 && i<=11) {
-      //rWrite(0x40008a+i-4,4);
+      rWrite(0x400203+48*(i-8),0);
+    } else {
     }
     rWrite(s3hs_chanaddrs_volume[i],chan[i].outVol);
+    if (i < 8) {
+      for (int op = 0; op < 8; op++) {
+        //rWrite(0x,chan[i].outVol);
+      }
+    }
   }
 }
 
@@ -255,14 +274,14 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
         rWrite(0x40000d + 64*c.chan,ins->s3hs.op7fl);
         rWrite(0x40000e + 64*c.chan,ins->s3hs.op8fu);
         rWrite(0x40000f + 64*c.chan,ins->s3hs.op8fl);
-        rWrite(0x400010 + 64*c.chan,ins->s3hs.op1v);
-        rWrite(0x400011 + 64*c.chan,ins->s3hs.op2v);
-        rWrite(0x400012 + 64*c.chan,ins->s3hs.op3v);
-        rWrite(0x400013 + 64*c.chan,ins->s3hs.op4v);
-        rWrite(0x400014 + 64*c.chan,ins->s3hs.op5v);
-        rWrite(0x400015 + 64*c.chan,ins->s3hs.op6v);
-        rWrite(0x400016 + 64*c.chan,ins->s3hs.op7v);
-        rWrite(0x400017 + 64*c.chan,ins->s3hs.op8v);
+        rWrite(0x400010 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op1v*chan[c.chan].vol)/256));
+        rWrite(0x400011 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op2v*(ins->s3hs.mode>1?255:chan[c.chan].vol))/256));
+        rWrite(0x400012 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op3v*(ins->s3hs.mode>1?255:chan[c.chan].vol))/256));
+        rWrite(0x400013 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op4v*(ins->s3hs.mode>1?255:chan[c.chan].vol))/256));
+        rWrite(0x400014 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op5v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
+        rWrite(0x400015 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op6v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
+        rWrite(0x400016 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op7v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
+        rWrite(0x400017 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op8v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
         rWrite(0x400018 + 64*c.chan,ins->s3hs.op1w*16+ins->s3hs.op2w);
         rWrite(0x400019 + 64*c.chan,ins->s3hs.op3w*16+ins->s3hs.op4w);
         rWrite(0x40001a + 64*c.chan,ins->s3hs.op5w*16+ins->s3hs.op6w);
@@ -300,6 +319,7 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
         rWrite(0x40003e + 64*c.chan,ins->s3hs.op8s);
         rWrite(0x40003f + 64*c.chan,ins->s3hs.op8r);
         rWrite(0x40001c + 64*c.chan,ins->s3hs.mode);
+        rWrite(0x40001f + 64*c.chan,(int)(ins->s3hs.fb)+128);
 
       } else {
       
@@ -317,7 +337,7 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
         
         chan[c.chan].insChanged=false;
       }
-      chan[c.chan].ws.init(ins,32,255,chan[c.chan].insChanged);
+      chan[c.chan].ws.init(ins,64,15,chan[c.chan].insChanged);
       chan[c.chan].active=true;
       chan[c.chan].keyOn=true;
       chan[c.chan].amp=(signed char)255;
@@ -386,10 +406,10 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
         chan[c.chan].ws.changeWave1(chan[c.chan].wave);
         chan[c.chan].waveUpdated=true;
       }
+      break;
     case DIV_CMD_PANNING: {
-      int tmp=0;
       chan[c.chan].pan=(c.value>>4)*16+(c.value2>>4);
-      rWrite((c.chan<8)?0x40001d+64*c.chan:0x400207+48*(c.chan-8),chan[c.chan].pan);
+      rWrite((c.chan<8)?0x40001d+64*c.chan:0x400207+48*(c.chan-8),(c.value>>4)*16+(c.value2>>4));
       break;
     }
   break;
@@ -431,7 +451,7 @@ const void* DivPlatformS3HS::getSampleMem(int index) {
 }
 
 size_t DivPlatformS3HS::getSampleMemCapacity(int index) {
-  return (index==0)?((sampleMemSize)-((initIlSize&64)?((1+(initIlSize&63))<<7):0)):0;
+  return (index==0)?((sampleMemSize)):0;
 }
 
 size_t DivPlatformS3HS::getSampleMemUsage(int index) {
@@ -460,13 +480,16 @@ void DivPlatformS3HS::renderSamples(int sysID) {
   size_t memPos=0;
   for (int i=0; i<parent->song.sampleLen; i++) {
     DivSample* s=parent->song.sample[i];
-    if (s->data8==NULL) continue;
+    if (s->data8==NULL) {
+      continue;
+    };
     if (!s->renderOn[0][sysID]) {
       sampleOffSU[i]=0;
       continue;
     }
     
-    int paddedLen=s->length8;
+    int len=s->getLoopEndPosition(DIV_SAMPLE_DEPTH_8BIT);
+    int paddedLen=MIN((int)(getSampleMemCapacity(0)-memPos),len);
     if (memPos>=getSampleMemCapacity(0)) {
       logW("out of PCM memory for sample %d!",i);
       break;
@@ -498,9 +521,10 @@ void DivPlatformS3HS::reset() {
   for (int i=0; i<chans; i++) {
     chan[i]=DivPlatformS3HS::Channel();
     chan[i].vol=0xff;
+    chan[i].pan=0xff;
     chan[i].std.setEngine(parent);
     chan[i].ws.setEngine(parent);
-    chan[i].ws.init(NULL,32,255,false);
+    chan[i].ws.init(NULL,64,15,false);
   }
   for (int i=0; i<sampleMemSize; i++) {
     cpt->ram_poke(cpt->ram,0x0+i,(S3HS_sound::Byte)((sampleMem[i]+128)&0xff));
@@ -523,6 +547,7 @@ int DivPlatformS3HS::init(DivEngine* p, int channels, int sugRate, const DivConf
   sampleMemSize=0x400000;// 4096KB (4194304 bytes)
   sampleMem=new unsigned char[sampleMemSize];
   memset(sampleMem,0,sampleMemSize); 
+  sampleMemLen=0;
   rate=48000;
   chipClock=48000;
   chans=channels;
@@ -533,6 +558,7 @@ int DivPlatformS3HS::init(DivEngine* p, int channels, int sugRate, const DivConf
 }
 
 void DivPlatformS3HS::quit() {
+  delete[] sampleMem;
   for (int i=0; i<chans; i++) {
     delete oscBuf[i];
   }
