@@ -3058,6 +3058,16 @@ void FurnaceGUI::initSystemPresets() {
   ENTRY(
     "SID2", {
       CH(DIV_SYSTEM_SID2, 1.0f, 0, "")
+      }
+  );
+  ENTRY(
+    "CPT100", {
+      CH(DIV_SYSTEM_CPT100, 1.0f, 0, "")
+    }
+  );
+  ENTRY(
+    "3HS88PWN4", {
+      CH(DIV_SYSTEM_S3HS, 1.0f, 0, "")
     }
   );
   CATEGORY_END;

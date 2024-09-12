@@ -91,6 +91,8 @@
 #include "platform/bifurcator.h"
 #include "platform/sid2.h"
 #include "platform/dummy.h"
+#include "platform/cpt100.h"
+#include "platform/s3hs.h"
 #include "../ta-log.h"
 #include "song.h"
 
@@ -762,6 +764,12 @@ void DivDispatchContainer::init(DivSystem sys, DivEngine* eng, int chanCount, do
       break;
     case DIV_SYSTEM_DUMMY:
       dispatch=new DivPlatformDummy;
+      break;
+    case DIV_SYSTEM_CPT100:
+      dispatch=new DivPlatformCPT100;
+      break;
+    case DIV_SYSTEM_S3HS:
+      dispatch=new DivPlatformS3HS;
       break;
     default:
       logW("this system is not supported yet! using dummy platform.");

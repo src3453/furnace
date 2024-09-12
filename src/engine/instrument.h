@@ -82,6 +82,7 @@ enum DivInstrumentType: unsigned short {
   DIV_INS_PV1000=49,
   DIV_INS_K053260=50,
   // DIV_INS_YMF292=51,
+  DIV_INS_CPT100=51,
   DIV_INS_TED=52,
   DIV_INS_C140=53,
   DIV_INS_C219=54,
@@ -94,6 +95,7 @@ enum DivInstrumentType: unsigned short {
   DIV_INS_GBA_MINMOD=61,
   DIV_INS_BIFURCATOR=62,
   DIV_INS_SID2=63, // coincidence!
+  DIV_INS_S3HS=64,
   DIV_INS_MAX,
   DIV_INS_NULL
 };
@@ -784,6 +786,138 @@ struct DivInstrumentSNES {
     d2(0) {}
 };
 
+struct DivInstrumentCPT100 {
+  unsigned char op2f, op3f, op4f;
+  unsigned char op1w, op2w, op3w, op4w;
+  unsigned char op1v, op1a, op1d, op1s, op1r;
+  unsigned char op2v, op2a, op2d, op2s, op2r;
+  unsigned char op3v, op3a, op3d, op3s, op3r;
+  unsigned char op4v, op4a, op4d, op4s, op4r;
+  int wave;
+
+  bool operator==(const DivInstrumentCPT100& other);
+  bool operator!=(const DivInstrumentCPT100& other) {
+    return !(*this==other);
+  }
+
+  DivInstrumentCPT100():
+    op2f(0),
+    op3f(0),
+    op4f(0),
+    op1w(0),
+    op2w(0),
+    op3w(0),
+    op4w(0),
+    op1v(0),
+    op1a(0),
+    op1d(0),
+    op1s(0),
+    op1r(0),
+    op2v(0),
+    op2a(0),
+    op2d(0),
+    op2s(0),
+    op2r(0),
+    op3v(0),
+    op3a(0),
+    op3d(0),
+    op3s(0),
+    op3r(0),
+    op4v(0),
+    op4a(0),
+    op4d(0),
+    op4s(0),
+    op4r(0)
+    {}
+};
+
+struct DivInstrumentS3HS {
+  unsigned char op2fu, op3fu, op4fu, op5fu, op6fu, op7fu, op8fu;
+  unsigned char op2fl, op3fl, op4fl, op5fl, op6fl, op7fl, op8fl;
+  unsigned char op1w, op2w, op3w, op4w, op5w, op6w, op7w, op8w;
+  unsigned char op1v, op1a, op1d, op1s, op1r;
+  unsigned char op2v, op2a, op2d, op2s, op2r;
+  unsigned char op3v, op3a, op3d, op3s, op3r;
+  unsigned char op4v, op4a, op4d, op4s, op4r;
+  unsigned char op5v, op5a, op5d, op5s, op5r;
+  unsigned char op6v, op6a, op6d, op6s, op6r;
+  unsigned char op7v, op7a, op7d, op7s, op7r;
+  unsigned char op8v, op8a, op8d, op8s, op8r;
+  unsigned char mode;
+  int wave;
+
+  bool operator==(const DivInstrumentS3HS& other);
+  bool operator!=(const DivInstrumentS3HS& other) {
+    return !(*this==other);
+  }
+
+  DivInstrumentS3HS():
+    op2fu(0), 
+    op3fu(0), 
+    op4fu(0), 
+    op5fu(0), 
+    op6fu(0), 
+    op7fu(0), 
+    op8fu(0),
+    op2fl(0),
+    op3fl(0),
+    op4fl(0),
+    op5fl(0),
+    op6fl(0),
+    op7fl(0),
+    op8fl(0),
+    op1w(0), 
+    op2w(0), 
+    op3w(0), 
+    op4w(0), 
+    op5w(0), 
+    op6w(0), 
+    op7w(0), 
+    op8w(0),
+    op1v(0), 
+    op1a(0), 
+    op1d(0), 
+    op1s(0), 
+    op1r(0),
+    op2v(0), 
+    op2a(0), 
+    op2d(0), 
+    op2s(0), 
+    op2r(0),
+    op3v(0), 
+    op3a(0), 
+    op3d(0), 
+    op3s(0), 
+    op3r(0),
+    op4v(0), 
+    op4a(0), 
+    op4d(0), 
+    op4s(0), 
+    op4r(0),
+    op5v(0), 
+    op5a(0), 
+    op5d(0), 
+    op5s(0), 
+    op5r(0),
+    op6v(0), 
+    op6a(0), 
+    op6d(0), 
+    op6s(0), 
+    op6r(0),
+    op7v(0), 
+    op7a(0), 
+    op7d(0), 
+    op7s(0), 
+    op7r(0),
+    op8v(0), 
+    op8a(0), 
+    op8d(0), 
+    op8s(0), 
+    op8r(0),
+    mode(0)
+    {}
+};
+
 // ESFM operator structure:
 // - DELAY, OUT, MOD, L, R, NOISE
 //   - Virtual: CT, DT, FIXED
@@ -876,9 +1010,11 @@ struct DivInstrument {
   DivInstrumentSoundUnit su;
   DivInstrumentES5506 es5506;
   DivInstrumentSNES snes;
+  DivInstrumentCPT100 cpt;
   DivInstrumentESFM esfm;
   DivInstrumentPowerNoise powernoise;
   DivInstrumentSID2 sid2;
+  DivInstrumentS3HS s3hs;
 
   /**
    * these are internal functions.
@@ -903,9 +1039,11 @@ struct DivInstrument {
   void writeFeatureES(SafeWriter* w);
   void writeFeatureX1(SafeWriter* w);
   void writeFeatureNE(SafeWriter* w);
+  void writeFeatureCP(SafeWriter* w);
   void writeFeatureEF(SafeWriter* w);
   void writeFeaturePN(SafeWriter* w);
   void writeFeatureS2(SafeWriter* w);
+  void writeFeature3H(SafeWriter* w);
 
   void readFeatureNA(SafeReader& reader, short version);
   void readFeatureFM(SafeReader& reader, short version);
@@ -926,9 +1064,11 @@ struct DivInstrument {
   void readFeatureES(SafeReader& reader, short version);
   void readFeatureX1(SafeReader& reader, short version);
   void readFeatureNE(SafeReader& reader, short version);
+  void readFeatureCP(SafeReader& reader, short version);
   void readFeatureEF(SafeReader& reader, short version);
   void readFeaturePN(SafeReader& reader, short version);
   void readFeatureS2(SafeReader& reader, short version);
+  void readFeature3H(SafeReader& reader, short version);
 
   DivDataErrors readInsDataOld(SafeReader& reader, short version);
   DivDataErrors readInsDataNew(SafeReader& reader, short version, bool fui, DivSong* song);
