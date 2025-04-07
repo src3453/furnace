@@ -1,4 +1,4 @@
-# NOTICE: Due to merge confrict, I cannot push current branch. Instead of this, here is the source code: https://1drv.ms/f/s!Ar2qOcxLj2UjlNwWfdEfKQITE57aUw?e=1ysaTJ
+# GPLv2 NOTICE: Due to merge confrict, I cannot push current branch. Instead of this, here is the source code: https://1drv.ms/f/s!Ar2qOcxLj2UjlNwWfdEfKQITE57aUw?e=1ysaTJ
 
 # Furnace (chiptune tracker)
 
