@@ -1969,6 +1969,9 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
       echoFilter[6]=flags.getInt("echoFilter6",0);
       echoFilter[7]=flags.getInt("echoFilter7",0);
 
+      bool interpolationOff=flags.getBool("interpolationOff",false);
+      bool antiClick=flags.getBool("antiClick",true);
+
       ImGui::Text(_("Volume scale:"));
       if (CWSliderInt(_("Left##VolScaleL"),&vsL,0,127)) {
         if (vsL<0) vsL=0;
@@ -2084,6 +2087,14 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
       ImGui::Text(_("sum: %d"),filterSum);
       ImGui::PopStyleColor();
 
+      if (ImGui::Checkbox(_("Disable Gaussian interpolation"),&interpolationOff)) {
+        altered=true;
+      }
+
+      if (ImGui::Checkbox(_("Anti-click"),&antiClick)) {
+        altered=true;
+      }
+
       if (altered) {
         e->lockSave([&]() {
           flags.set("volScaleL",127-vsL);
@@ -2102,6 +2113,8 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
           flags.set("echoFilter6",echoFilter[6]);
           flags.set("echoFilter7",echoFilter[7]);
           flags.set("echoMask",echoMask);
+          flags.set("interpolationOff",interpolationOff);
+          flags.set("antiClick",antiClick);
         });
       }
 
@@ -2317,6 +2330,29 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
       }
       break;
     }
+    case DIV_SYSTEM_SUPERVISION: {
+      bool swapDuty=flags.getInt("swapDuty",true);
+
+      if (ImGui::Checkbox(_("Swap noise duty cycles"),&swapDuty)) {
+        altered=true;
+      }
+
+      bool sqStereo=flags.getInt("sqStereo",false);
+
+      if (ImGui::Checkbox(_("Stereo pulse waves"),&sqStereo)) {
+        altered=true;
+      }
+
+      if (altered) {
+        e->lockSave([&]() {
+          flags.set("swapDuty",(int)swapDuty);
+        });
+        e->lockSave([&]() {
+          flags.set("sqStereo",(int)sqStereo);
+        });
+      }
+      break;
+    }
     case DIV_SYSTEM_SM8521:/*  {
       bool noAntiClick=flags.getBool("noAntiClick",false);
 
@@ -2482,7 +2518,7 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
       break;
     }
     case DIV_SYSTEM_VERA: {
-      int chipType=flags.getInt("chipType",1);
+      int chipType=flags.getInt("chipType",2);
 
       ImGui::Text(_("Chip revision:"));
       ImGui::Indent();
@@ -2494,11 +2530,76 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
         chipType=1;
         altered=true;
       }
+      if (ImGui::RadioButton(_("V 47.0.2 (Tri/Saw PW XOR)"),chipType==2)) {
+        chipType=2;
+        altered=true;
+      }
       ImGui::Unindent();
 
       if (altered) {
         e->lockSave([&]() {
           flags.set("chipType",chipType);
+        });
+      }
+      break;
+    }
+    case DIV_SYSTEM_OPL4:
+    case DIV_SYSTEM_OPL4_DRUMS: {
+      int clockSel=flags.getInt("clockSel",0);
+      int ramSize=flags.getInt("ramSize",0);
+
+      ImGui::Text(_("Clock rate:"));
+      ImGui::Indent();
+      if (ImGui::RadioButton(_("33.8688MHz"),clockSel==0)) {
+        clockSel=0;
+        altered=true;
+      }
+      if (ImGui::RadioButton(_("28.64MHz (NTSC)"),clockSel==1)) {
+        clockSel=1;
+        altered=true;
+      }
+      if (ImGui::RadioButton(_("28.38MHz (PAL)"),clockSel==2)) {
+        clockSel=2;
+        altered=true;
+      }
+      ImGui::Unindent();
+
+      ImGui::Text(_("RAM size:"));
+      ImGui::Indent();
+      if (ImGui::RadioButton(_("4MB"),ramSize==0)) {
+        ramSize=0;
+        altered=true;
+      }
+      if (ImGui::RadioButton(_("2MB"),ramSize==1)) {
+        ramSize=1;
+        altered=true;
+      }
+      if (ImGui::RadioButton(_("1MB"),ramSize==2)) {
+        ramSize=2;
+        altered=true;
+      }
+      if (ImGui::RadioButton(_("640KB"),ramSize==3)) {
+        ramSize=3;
+        altered=true;
+      }
+      if (ImGui::RadioButton(_("512KB"),ramSize==4)) {
+        ramSize=4;
+        altered=true;
+      }
+      if (ImGui::RadioButton(_("256KB"),ramSize==5)) {
+        ramSize=5;
+        altered=true;
+      }
+      if (ImGui::RadioButton(_("128KB"),ramSize==6)) {
+        ramSize=6;
+        altered=true;
+      }
+      ImGui::Unindent();
+
+      if (altered) {
+        e->lockSave([&]() {
+          flags.set("clockSel",clockSel);
+          flags.set("ramSize",ramSize);
         });
       }
       break;
@@ -2511,12 +2612,79 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
     case DIV_SYSTEM_C219:
     case DIV_SYSTEM_BIFURCATOR:
     case DIV_SYSTEM_POWERNOISE:
+    case DIV_SYSTEM_UPD1771C:
       break;
     case DIV_SYSTEM_YMU759:
     case DIV_SYSTEM_ESFM:
       supportsCustomRate=false;
       ImGui::Text(_("nothing to configure"));
       break;
+    case DIV_SYSTEM_S3HS: {
+      supportsCustomRate=false;      
+      bool sysEnableComp=flags.getBool("enableComp",false);
+      int sysCompThreshold=flags.getInt("compThresh",0);
+      int sysCompRatio=flags.getInt("compRatio",0);
+      int sysCompVolume=flags.getInt("compVolume",32);
+      if (ImGui::Checkbox(_("Enable Compressor"),&sysEnableComp)) {
+        altered=true;
+      }
+      ImGui::Text(_("Compressor Target Gain:"));
+      if (CWSliderInt("##S3HS_CompThresh",&sysCompThreshold,0,255)) {
+        if (sysCompThreshold<0) sysCompThreshold=0;
+        if (sysCompThreshold>255) sysCompThreshold=255;
+        altered=true;
+      } rightClickable
+      ImGui::Text(_("Compressor Decay Rate:"));
+      if (CWSliderInt("##S3HS_CompRatio",&sysCompRatio,0,255)) {
+        if (sysCompRatio<0) sysCompRatio=0;
+        if (sysCompRatio>255) sysCompRatio=255;
+        altered=true;
+      } rightClickable
+      ImGui::Text(_("Compressor Volume:"));
+      if (CWSliderInt("##S3HS_CompVolume",&sysCompVolume,0,255)) {
+        if (sysCompVolume<0) sysCompVolume=0;
+        if (sysCompVolume>255) sysCompVolume=255;
+        altered=true;
+      } rightClickable
+      bool sysEnableEQ=flags.getBool("enableEQ",false);
+      int sysEQlo=flags.getInt("EQlo",0);
+      int sysEQmid=flags.getInt("EQmid",0);
+      int sysEQhi=flags.getInt("EQhi",0);
+      if (ImGui::Checkbox(_("Enable Equalizer"),&sysEnableEQ)) {
+        altered=true;
+      }
+      ImGui::Text(_("Equalizer low band gain:"));
+      if (CWSliderInt("##S3HS_EQlo",&sysEQlo,0,255)) {
+        if (sysEQlo<0) sysEQlo=0;
+        if (sysEQlo>255) sysEQlo=255;
+        altered=true;
+      } rightClickable
+      ImGui::Text(_("Equalizer mid band gain:"));
+      if (CWSliderInt("##S3HS_EQmid",&sysEQmid,0,255)) {
+        if (sysEQmid<0) sysEQmid=0;
+        if (sysEQmid>255) sysEQmid=255;
+        altered=true;
+      } rightClickable
+      ImGui::Text(_("Equalizer high band gain:"));
+      if (CWSliderInt("##S3HS_EQhi",&sysEQhi,0,255)) {
+        if (sysEQhi<0) sysEQhi=0;
+        if (sysEQhi>255) sysEQhi=255;
+        altered=true;
+      } rightClickable
+      if (altered) {
+        e->lockSave([&]() {  
+          flags.set("enableComp",sysEnableComp);
+          flags.set("compThresh",sysCompThreshold);
+          flags.set("compRatio",sysCompRatio);
+          flags.set("compVolume",sysCompVolume);
+          flags.set("enableEQ",sysEnableEQ);
+          flags.set("EQlo",sysEQlo);
+          flags.set("EQmid",sysEQmid);
+          flags.set("EQhi",sysEQhi);
+        });
+      }
+      break; }
+      
     default: {
       bool sysPal=flags.getInt("clockSel",0);
 

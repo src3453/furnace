@@ -135,6 +135,7 @@ void DivPlatform3FS44U::tick(bool sysTick) {
           }
           chan[i].freq=(double)chan[i].freq*off;
         }
+        chan[i].freqChanged=false;
       } else {
           chan[i].freqChanged=false;
           chan[i].freq=parent->calcFreq(chan[i].baseFreq,chan[i].pitch,chan[i].fixedArp?chan[i].baseNoteOverride:chan[i].arpOff,chan[i].fixedArp,0,2,chan[i].pitch2,chipClock,CHIP_FREQBASE)/16;
@@ -218,6 +219,7 @@ int DivPlatform3FS44U::dispatch(DivCommand c) {
           chan[c.chan].freqChanged=true;
         }
       }
+      chan[c.chan].note = c.value;
       chan[c.chan].macroInit(ins);
       if (c.chan<4)
       {

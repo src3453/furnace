@@ -67,6 +67,7 @@ enum DivDispatchCmds {
   DIV_CMD_HINT_ARPEGGIO, // (note1, note2)
   DIV_CMD_HINT_VOLUME, // (vol)
   DIV_CMD_HINT_VOL_SLIDE, // (amount, oneTick)
+  DIV_CMD_HINT_VOL_SLIDE_TARGET, // (amount, target)
   DIV_CMD_HINT_PORTA, // (target, speed)
   DIV_CMD_HINT_LEGATO, // (note)
 
@@ -262,6 +263,34 @@ enum DivDispatchCmds {
 
   DIV_CMD_BIFURCATOR_STATE_LOAD,
   DIV_CMD_BIFURCATOR_PARAMETER,
+
+  DIV_CMD_FDS_MOD_AUTO,
+
+  DIV_CMD_FM_OPMASK, // (mask)
+
+  DIV_CMD_MULTIPCM_MIX_FM, // (value)
+  DIV_CMD_MULTIPCM_MIX_PCM, // (value)
+  DIV_CMD_MULTIPCM_LFO, // (value)
+  DIV_CMD_MULTIPCM_VIB, // (value)
+  DIV_CMD_MULTIPCM_AM, // (value)
+  DIV_CMD_MULTIPCM_AR, // (value)
+  DIV_CMD_MULTIPCM_D1R, // (value)
+  DIV_CMD_MULTIPCM_DL, // (value)
+  DIV_CMD_MULTIPCM_D2R, // (value)
+  DIV_CMD_MULTIPCM_RC, // (value)
+  DIV_CMD_MULTIPCM_RR, // (value)
+  DIV_CMD_MULTIPCM_DAMP, // (value)
+  DIV_CMD_MULTIPCM_PSEUDO_REVERB, // (value)
+  DIV_CMD_MULTIPCM_LFO_RESET, // (value)
+  DIV_CMD_MULTIPCM_LEVEL_DIRECT, // (value)
+
+  DIV_CMD_S3HS_OP_VOLUME, // (OP, value)
+  DIV_CMD_S3HS_OP_WAVE, // (OP, value)
+  DIV_CMD_S3HS_MODMODE, // (value)
+  DIV_CMD_S3HS_FEEDBACK, // (value)
+  DIV_CMD_S3HS_OP_FREQ_FU, // (OP, value)
+  DIV_CMD_S3HS_OP_FREQ_FL, // (OP, value)
+  DIV_CMD_S3HS_FILTER, // (Reg, value)
 
   DIV_CMD_MAX
 };
@@ -680,6 +709,14 @@ class DivDispatch {
      * @return output volume.
      */
     virtual int mapVelocity(int ch, float vel);
+
+    /**
+     * map chip volume to gain.
+     * @param ch the chip channel. -1 means N/A.
+     * @param vol input volume.
+     * @return output gain fron 0.0 to 1.0.
+     */
+    virtual float getGain(int ch, int vol);
 
     /**
      * get the lowest note in a portamento.

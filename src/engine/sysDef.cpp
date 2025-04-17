@@ -433,6 +433,7 @@ void DivEngine::registerSystems() {
     {0x25, {DIV_CMD_AY_ENVELOPE_SLIDE, _("25xx: Envelope slide up"), negEffectVal}},
     {0x26, {DIV_CMD_AY_ENVELOPE_SLIDE, _("26xx: Envelope slide down")}},
     {0x29, {DIV_CMD_AY_AUTO_ENVELOPE, _("29xy: Set auto-envelope (x: numerator; y: denominator)")}},
+    {0x2c, {DIV_CMD_AY_AUTO_PWM, _("2Cxx: Set timer period offset (bit 7: sign)")}},
     {0x2e, {DIV_CMD_AY_IO_WRITE, _("2Exx: Write to I/O port A"), constVal<0>, effectVal}},
     {0x2f, {DIV_CMD_AY_IO_WRITE, _("2Fxx: Write to I/O port B"), constVal<1>, effectVal}},
   };
@@ -503,6 +504,7 @@ void DivEngine::registerSystems() {
     {0x5d, {DIV_CMD_FM_D2R, _("5Dxx: Set decay 2 of operator 2 (0 to 1F)"), constVal<1>, effectValAnd<31>}},
     {0x5e, {DIV_CMD_FM_D2R, _("5Exx: Set decay 2 of operator 3 (0 to 1F)"), constVal<2>, effectValAnd<31>}},
     {0x5f, {DIV_CMD_FM_D2R, _("5Fxx: Set decay 2 of operator 4 (0 to 1F)"), constVal<3>, effectValAnd<31>}},
+    {0x60, {DIV_CMD_FM_OPMASK, _("60xx: Set operator mask (bits 0-3)")}},
   };
 
   EffectHandlerMap fmOPMPostEffectHandlerMap(fmOPNPostEffectHandlerMap);
@@ -513,6 +515,7 @@ void DivEngine::registerSystems() {
     {0x1e, {DIV_CMD_FM_AM_DEPTH, _("1Exx: Set AM depth (0 to 7F)"), effectValAnd<127>}},
     {0x1f, {DIV_CMD_FM_PM_DEPTH, _("1Fxx: Set PM depth (0 to 7F)"), effectValAnd<127>}},
     {0x55, {DIV_CMD_FM_SSG, _("55xy: Set detune 2 (x: operator from 1 to 4 (0 for all ops); y: detune from 0 to 3)"), effectOpVal<4>, effectValAnd<3>}},
+    {0x60, {DIV_CMD_FM_OPMASK, _("60xx: Set operator mask (bits 0-3)")}},
   });
 
   EffectHandlerMap fmOPZPostEffectHandlerMap(fmOPMPostEffectHandlerMap);
@@ -598,6 +601,25 @@ void DivEngine::registerSystems() {
     {0x5a, {DIV_CMD_FM_DR, _("5Axx: Set decay of operator 4 (0 to F)"), constVal<3>, effectValAnd<15>}},
     {0x5b, {DIV_CMD_FM_KSR, _("5Bxy: Set whether key will scale envelope (x: operator from 1 to 4 (0 for all ops); y: enabled)"), effectOpVal<4>, effectValAnd<1>}},
   };
+
+  EffectHandlerMap fmOPL4PostEffectHandlerMap(fmOPLPostEffectHandlerMap);
+  fmOPL4PostEffectHandlerMap.insert({
+    {0x1e, {DIV_CMD_MULTIPCM_MIX_FM, _("1Exy: FM global level (x: left, y: right; 0 to 7)"), effectVal}},
+    {0x1f, {DIV_CMD_MULTIPCM_MIX_PCM, _("1Fxy: PCM global level (x: left, y: right; 0 to 7)"), effectVal}},
+    {0x20, {DIV_CMD_MULTIPCM_LFO, _("20xx: PCM LFO Rate (0 to 7)"), effectValAnd<7>}},
+    {0x21, {DIV_CMD_MULTIPCM_VIB, _("21xx: PCM LFO PM Depth (0 to 7)"), effectValAnd<7>}},
+    {0x22, {DIV_CMD_MULTIPCM_AM, _("22xx: PCM LFO AM Depth (0 to 7)"), effectValAnd<7>}},
+    {0x23, {DIV_CMD_MULTIPCM_AR, _("23xx: PCM Attack Rate (0 to 15)"), effectValAnd<15>}},
+    {0x24, {DIV_CMD_MULTIPCM_D1R, _("24xx: PCM Decay 1 Rate (0 to 15)"), effectValAnd<15>}},
+    {0x25, {DIV_CMD_MULTIPCM_DL, _("25xx: PCM Decay Level (0 to 15)"), effectValAnd<15>}},
+    {0x26, {DIV_CMD_MULTIPCM_D2R, _("26xx: PCM Decay 2 Rate (0 to 15)"), effectValAnd<15>}},
+    {0x27, {DIV_CMD_MULTIPCM_RR, _("27xx: PCM Release Rate (0 to 15)"), effectValAnd<15>}},
+    {0x28, {DIV_CMD_MULTIPCM_RC, _("28xx: PCM Rate Correction (0 to 15)"), effectValAnd<15>}},
+    {0x2c, {DIV_CMD_MULTIPCM_DAMP, _("2Cxx: PCM Damp"), effectValAnd<1>}},
+    {0x2d, {DIV_CMD_MULTIPCM_PSEUDO_REVERB, _("2Dxx: PCM Pseudo Reverb"), effectValAnd<1>}},
+    {0x2e, {DIV_CMD_MULTIPCM_LFO_RESET, _("2Exx: PCM LFO Reset"), effectValAnd<1>}},
+    {0x2f, {DIV_CMD_MULTIPCM_LEVEL_DIRECT, _("2Fxx: PCM Level Direct"), effectValAnd<1>}},
+  });
 
   EffectHandlerMap c64PostEffectHandlerMap={
     {0x10, {DIV_CMD_WAVE, _("10xx: Set waveform (bit 0: triangle; bit 1: saw; bit 2: pulse; bit 3: noise)")}},
@@ -1053,6 +1075,7 @@ void DivEngine::registerSystems() {
       {0x13, {DIV_CMD_FDS_MOD_LOW, _("13xx: Set modulation speed low byte")}},
       {0x14, {DIV_CMD_FDS_MOD_POS, _("14xx: Set modulator position")}},
       {0x15, {DIV_CMD_FDS_MOD_WAVE, _("15xx: Set modulator table to waveform")}},
+      {0x16, {DIV_CMD_FDS_MOD_AUTO, _("16xy: Automatic modulation speed (x: numerator; y: denominator)")}},
     }
   );
 
@@ -1614,24 +1637,28 @@ void DivEngine::registerSystems() {
   );
 
   // to Grauw: feel free to change this to 24 during development of OPL4's PCM part.
-  // TODO: add 12-bit and 16-bit big-endian sample formats
   sysDefs[DIV_SYSTEM_OPL4]=new DivSysDef(
-    _("Yamaha YMF278B (OPL4)"), NULL, 0xae, 0, 42, true, true, 0, false, (1U<<DIV_SAMPLE_DEPTH_8BIT)|(1U<<DIV_SAMPLE_DEPTH_16BIT), 0, 0,
+    _("Yamaha YMF278B (OPL4)"), NULL, 0xae, 0, 42, true, true, 0x151, false, (1U<<DIV_SAMPLE_DEPTH_8BIT)|(1U<<DIV_SAMPLE_DEPTH_12BIT)|(1U<<DIV_SAMPLE_DEPTH_16BIT), 0, 0,
     _("like OPL3, but this time it also has a 24-channel version of MultiPCM."),
     {_("4OP 1"), _("FM 2"), _("4OP 3"), _("FM 4"), _("4OP 5"), _("FM 6"), _("4OP 7"), _("FM 8"), _("4OP 9"), _("FM 10"), _("4OP 11"), _("FM 12"), _("FM 13"), _("FM 14"), _("FM 15"), _("FM 16"), _("FM 17"), _("FM 18"), _("PCM 1"), _("PCM 2"), _("PCM 3"), _("PCM 4"), _("PCM 5"), _("PCM 6"), _("PCM 7"), _("PCM 8"), _("PCM 9"), _("PCM 10"), _("PCM 11"), _("PCM 12"), _("PCM 13"), _("PCM 14"), _("PCM 15"), _("PCM 16"), _("PCM 17"), _("PCM 18"), _("PCM 19"), _("PCM 20"), _("PCM 21"), _("PCM 22"), _("PCM 23"), _("PCM 24")},
-    {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15", "F16", "F17", "F18", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P8", "P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17", "P18", "P19", "P20", "P21", "P22", "P23", "P24"},
+    {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15", "F16", "F17", "F18", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17", "P18", "P19", "P20", "P21", "P22", "P23", "P24"},
     {DIV_CH_OP, DIV_CH_FM, DIV_CH_OP, DIV_CH_FM, DIV_CH_OP, DIV_CH_FM, DIV_CH_OP, DIV_CH_FM, DIV_CH_OP, DIV_CH_FM, DIV_CH_OP, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM},
-    {DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM}
+    {DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM},
+    {DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA},
+    fmEffectHandlerMap,
+    fmOPL4PostEffectHandlerMap
   );
 
-  // TODO: same here
   sysDefs[DIV_SYSTEM_OPL4_DRUMS]=new DivSysDef(
-    _("Yamaha YMF278B (OPL4) with drums"), NULL, 0xaf, 0, 44, true, true, 0, false, (1U<<DIV_SAMPLE_DEPTH_8BIT)|(1U<<DIV_SAMPLE_DEPTH_16BIT), 0, 0,
+    _("Yamaha YMF278B (OPL4) with drums"), NULL, 0xaf, 0, 44, true, true, 0x151, false, (1U<<DIV_SAMPLE_DEPTH_8BIT)|(1U<<DIV_SAMPLE_DEPTH_12BIT)|(1U<<DIV_SAMPLE_DEPTH_16BIT), 0, 0,
     _("the OPL4 but with drums mode turned on."),
     {_("4OP 1"), _("FM 2"), _("4OP 3"), _("FM 4"), _("4OP 5"), _("FM 6"), _("4OP 7"), _("FM 8"), _("4OP 9"), _("FM 10"), _("4OP 11"), _("FM 12"), _("FM 13"), _("FM 14"), _("FM 15"), _("Kick/FM 16"), _("Snare"), _("Tom"), _("Top"), _("HiHat"), _("PCM 1"), _("PCM 2"), _("PCM 3"), _("PCM 4"), _("PCM 5"), _("PCM 6"), _("PCM 7"), _("PCM 8"), _("PCM 9"), _("PCM 10"), _("PCM 11"), _("PCM 12"), _("PCM 13"), _("PCM 14"), _("PCM 15"), _("PCM 16"), _("PCM 17"), _("PCM 18"), _("PCM 19"), _("PCM 20"), _("PCM 21"), _("PCM 22"), _("PCM 23"), _("PCM 24")},
-    {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15", "BD", "SD", "TM", "TP", "HH", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P8", "P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17", "P18", "P19", "P20", "P21", "P22", "P23", "P24"},
+    {"F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8", "F9", "F10", "F11", "F12", "F13", "F14", "F15", "BD", "SD", "TM", "TP", "HH", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10", "P11", "P12", "P13", "P14", "P15", "P16", "P17", "P18", "P19", "P20", "P21", "P22", "P23", "P24"},
     {DIV_CH_OP, DIV_CH_FM, DIV_CH_OP, DIV_CH_FM, DIV_CH_OP, DIV_CH_FM, DIV_CH_OP, DIV_CH_FM, DIV_CH_OP, DIV_CH_FM, DIV_CH_OP, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_NOISE, DIV_CH_NOISE, DIV_CH_NOISE, DIV_CH_NOISE, DIV_CH_NOISE, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM},
-    {DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM}
+    {DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM, DIV_INS_MULTIPCM},
+    {DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_OPL, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA},
+    fmOPLDrumsEffectHandlerMap,
+    fmOPL4PostEffectHandlerMap
   );
 
   EffectHandlerMap es5506PreEffectHandlerMap={
@@ -1914,6 +1941,33 @@ void DivEngine::registerSystems() {
     {DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA}
   );
 
+  sysDefs[DIV_SYSTEM_SUPERVISION]=new DivSysDef(
+    _("Watara Supervision"), NULL, 0xe3, 0, 4, false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 0, 0,
+    _("a handheld that was trying to compete with the Game Boy, but it never succeded."),
+    {_("Pulse 1"), _("Pulse 2"), _("PCM"),  _("Noise")},
+    {"S1", "S2", "PCM", "NO"},
+    {DIV_CH_PULSE, DIV_CH_PULSE, DIV_CH_PCM, DIV_CH_NOISE},
+    {DIV_INS_SUPERVISION, DIV_INS_SUPERVISION, DIV_INS_SUPERVISION, DIV_INS_SUPERVISION},
+    {DIV_INS_SUPERVISION, DIV_INS_SUPERVISION, DIV_INS_AMIGA, DIV_INS_SUPERVISION},
+    {
+      {0x12, {DIV_CMD_STD_NOISE_MODE, _("12xx: Set duty cycle/noise mode (pulse: 0 to 3; noise: 0 or 1)")}},
+    }
+  );
+
+  sysDefs[DIV_SYSTEM_UPD1771C]=new DivSysDef(
+    _("NEC μPD1771C"), NULL, 0xe4, 0, 1, false, true, 0, false, 0, 0, 0,
+    _("this was an SoC with some funky wavetable/noise hardware"),
+    {_("Wave/Noise")},
+    {"W"},
+    {DIV_CH_NOISE},
+    {DIV_INS_UPD1771C},
+    {},
+    {
+      {0x10, {DIV_CMD_STD_NOISE_MODE, _("10xx: Set duty/waveform (bit 0-3: waveform; bit 4: mode)")}},
+      {0x12, {DIV_CMD_N163_WAVE_POSITION, _("12xx: Set waveform position (0-31)")}},
+    }
+  );
+
   sysDefs[DIV_SYSTEM_SM8521]=new DivSysDef(
     _("Sharp SM8521"), NULL, 0xc8, 0, 3, false, true, 0, false, 0, 32, 16,
     _("a SoC with wavetable sound hardware."),
@@ -2152,18 +2206,56 @@ void DivEngine::registerSystems() {
     {DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM},
     {DIV_INS_CPT100, DIV_INS_CPT100, DIV_INS_CPT100, DIV_INS_CPT100},
     {DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL},
-    waveOnlyEffectHandlerMap
+    {}
   );
+  //const EffectHandler suCutoffHandler(DIV_CMD_C64_FINE_CUTOFF, _("4xxx: Set cutoff (0 to FFF)"), effectValLong<12>);
+  EffectHandlerMap s3hsEffectHandlerMap = {
+    {0x10, {DIV_CMD_S3HS_OP_VOLUME, _("10xx: Set volume of operator 1"), constVal<0>, effectVal}},
+    {0x11, {DIV_CMD_S3HS_OP_VOLUME, _("11xx: Set volume of operator 2"), constVal<1>, effectVal}},
+    {0x12, {DIV_CMD_S3HS_OP_VOLUME, _("12xx: Set volume of operator 3"), constVal<2>, effectVal}},
+    {0x13, {DIV_CMD_S3HS_OP_VOLUME, _("13xx: Set volume of operator 4"), constVal<3>, effectVal}},
+    {0x14, {DIV_CMD_S3HS_OP_VOLUME, _("14xx: Set volume of operator 5"), constVal<4>, effectVal}},
+    {0x15, {DIV_CMD_S3HS_OP_VOLUME, _("15xx: Set volume of operator 6"), constVal<5>, effectVal}},
+    {0x16, {DIV_CMD_S3HS_OP_VOLUME, _("16xx: Set volume of operator 7"), constVal<6>, effectVal}},
+    {0x17, {DIV_CMD_S3HS_OP_VOLUME, _("17xx: Set volume of operator 8"), constVal<7>, effectVal}},
+    {0x18, {DIV_CMD_S3HS_OP_WAVE, _("18xx: Set waveform type of operator 1 (0 to F)"), constVal<0>, effectVal}},
+    {0x19, {DIV_CMD_S3HS_OP_WAVE, _("19xx: Set waveform type of operator 2 (0 to F)"), constVal<1>, effectVal}},
+    {0x1a, {DIV_CMD_S3HS_OP_WAVE, _("1Axx: Set waveform type of operator 3 (0 to F)"), constVal<2>, effectVal}},
+    {0x1b, {DIV_CMD_S3HS_OP_WAVE, _("1Bxx: Set waveform type of operator 4 (0 to F)"), constVal<3>, effectVal}},
+    {0x1c, {DIV_CMD_S3HS_OP_WAVE, _("1Cxx: Set waveform type of operator 5 (0 to F)"), constVal<4>, effectVal}},
+    {0x1d, {DIV_CMD_S3HS_OP_WAVE, _("1Dxx: Set waveform type of operator 6 (0 to F)"), constVal<5>, effectVal}},
+    {0x1e, {DIV_CMD_S3HS_OP_WAVE, _("1Exx: Set waveform type of operator 7 (0 to F)"), constVal<6>, effectVal}},
+    {0x1f, {DIV_CMD_S3HS_OP_WAVE, _("1Fxx: Set waveform type of operator 8 (0 to F)"), constVal<7>, effectVal}},
+    {0x20, {DIV_CMD_S3HS_MODMODE, _("20xx: Set modulation mode")}},
+    {0x21, {DIV_CMD_S3HS_FEEDBACK, _("21xx: Set modulation feedback amount (with reversed signed byte format)")}},
+    {0x22, {DIV_CMD_S3HS_OP_FREQ_FU, _("22xx: Set freq high byte (FU) of operator 2"), constVal<1>, effectVal}},
+    {0x23, {DIV_CMD_S3HS_OP_FREQ_FL, _("23xx: Set freq low byte (FL) of operator 2"), constVal<1>, effectVal}},
+    {0x24, {DIV_CMD_S3HS_OP_FREQ_FU, _("24xx: Set freq high byte (FU) of operator 3"), constVal<2>, effectVal}},
+    {0x25, {DIV_CMD_S3HS_OP_FREQ_FL, _("25xx: Set freq low byte (FL) of operator 3"), constVal<2>, effectVal}},
+    {0x26, {DIV_CMD_S3HS_OP_FREQ_FU, _("26xx: Set freq high byte (FU) of operator 4"), constVal<3>, effectVal}},
+    {0x27, {DIV_CMD_S3HS_OP_FREQ_FL, _("27xx: Set freq low byte (FL) of operator 4"), constVal<3>, effectVal}},
+    {0x28, {DIV_CMD_S3HS_OP_FREQ_FU, _("28xx: Set freq high byte (FU) of operator 5"), constVal<4>, effectVal}},
+    {0x29, {DIV_CMD_S3HS_OP_FREQ_FL, _("29xx: Set freq low byte (FL) of operator 5"), constVal<4>, effectVal}},
+    {0x2a, {DIV_CMD_S3HS_OP_FREQ_FU, _("2Axx: Set freq high byte (FU) of operator 6"), constVal<5>, effectVal}},
+    {0x2b, {DIV_CMD_S3HS_OP_FREQ_FL, _("2Bxx: Set freq low byte (FL) of operator 6"), constVal<5>, effectVal}},
+    {0x2c, {DIV_CMD_S3HS_OP_FREQ_FU, _("2Cxx: Set freq high byte (FU) of operator 7"), constVal<6>, effectVal}},
+    {0x2d, {DIV_CMD_S3HS_OP_FREQ_FL, _("2Dxx: Set freq low byte (FL) of operator 7"), constVal<6>, effectVal}},
+    {0x2e, {DIV_CMD_S3HS_OP_FREQ_FU, _("2Exx: Set freq high byte (FU) of operator 8"), constVal<7>, effectVal}},
+    {0x2f, {DIV_CMD_S3HS_OP_FREQ_FL, _("2Fxx: Set freq low byte (FL) of operator 8"), constVal<7>, effectVal}},
+    {0x30, {DIV_CMD_S3HS_FILTER, _("30xx: Set filter type (0: lowpass, 1: highpass, 2: bandpass, 3: bandstop)"), constVal<0>, effectVal}},
+    {0x31, {DIV_CMD_S3HS_FILTER, _("31xx: Set filter cutoff frequency"), constVal<1>, effectVal}},
+    {0x32, {DIV_CMD_S3HS_FILTER, _("32xx: Set filter resonance/bandwidth"), constVal<2>, effectVal}},
+  };
 
   sysDefs[DIV_SYSTEM_S3HS]=new DivSysDef(
-    "3HS88PWN4", NULL, 0xfc, 0, 12, false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 64, 16,
+    "3HS88PWN4", NULL, 0xfc, 0, 12, false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 32, 256,
     "src3453's another fantasy sound chip. It supports harmonic synthesize.",
     {"HS 1", "HS 2", "HS 3", "HS 4", "HS 5", "HS 6", "HS 7", "HS 8", "PCM 1", "PCM 2", "PCM 3", "PCM 4"},
     {"H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "P1", "P2", "P3", "P4"},
     {DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM},
     {DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS},
     {DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA},
-    waveOnlyEffectHandlerMap
+    s3hsEffectHandlerMap
   );
 
   sysDefs[DIV_SYSTEM_DUMMY]=new DivSysDef(

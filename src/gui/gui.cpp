@@ -388,6 +388,7 @@ void FurnaceGUI::decodeMMLStr(String& source, int* macro, unsigned char& macroLe
     setBit30=false;
     macroLen++;
     buf=0;
+    MARK_MODIFIED;
   }
 }
 
@@ -423,6 +424,21 @@ void FurnaceGUI::decodeMMLStr(String& source, int* macro, unsigned char& macroLe
       } \
     } \
   }
+
+bool FurnaceGUI::isCtrlWheelModifierHeld() const {
+  switch (settings.ctrlWheelModifier) {
+    case 0:
+      return ImGui::IsKeyDown(ImGuiMod_Ctrl) || ImGui::IsKeyDown(ImGuiMod_Super);
+    case 1:
+      return ImGui::IsKeyDown(ImGuiMod_Ctrl);
+    case 2:
+      return ImGui::IsKeyDown(ImGuiMod_Super);
+    case 3:
+      return ImGui::IsKeyDown(ImGuiMod_Alt);
+    default:
+      return false;
+  }
+}
 
 bool FurnaceGUI::CWSliderScalar(const char* label, ImGuiDataType data_type, void* p_data, const void* p_min, const void* p_max, const char* format, ImGuiSliderFlags flags) {
   flags^=ImGuiSliderFlags_AlwaysClamp;
@@ -752,6 +768,88 @@ void FurnaceGUI::autoDetectSystem() {
   }
 }
 
+void FurnaceGUI::updateROMExportAvail() {
+  unsigned char sysReqCount[DIV_SYSTEM_MAX];
+  unsigned char defReqCount[DIV_SYSTEM_MAX];
+
+  memset(sysReqCount,0,DIV_SYSTEM_MAX);
+  for (int i=0; i<e->song.systemLen; i++) {
+    sysReqCount[e->song.system[i]]++;
+  }
+
+  memset(romExportAvail,0,sizeof(bool)*DIV_ROM_MAX);
+  romExportExists=false;
+
+  for (int i=0; i<DIV_ROM_MAX; i++) {
+    const DivROMExportDef* newDef=e->getROMExportDef((DivROMExportOptions)i);
+    if (newDef!=NULL) {
+      // check for viability
+      bool viable=true;
+
+      memset(defReqCount,0,DIV_SYSTEM_MAX);
+      for (DivSystem j: newDef->requisites) {
+        defReqCount[j]++;
+      }
+
+      switch (newDef->requisitePolicy) {
+        case DIV_REQPOL_EXACT:
+          for (int j=0; j<DIV_SYSTEM_MAX; j++) {
+            if (defReqCount[j]!=sysReqCount[j]) {
+              viable=false;
+              break;
+            }
+          }
+          break;
+        case DIV_REQPOL_ANY:
+          for (int j=0; j<DIV_SYSTEM_MAX; j++) {
+            if (defReqCount[j]>sysReqCount[j]) {
+              viable=false;
+              break;
+            }
+          }
+          break;
+        case DIV_REQPOL_LAX:
+          viable=false;
+          for (DivSystem j: newDef->requisites) {
+            if (defReqCount[j]<=sysReqCount[j]) {
+              viable=true;
+              break;
+            }
+          }
+          break;
+      }
+      
+      if (viable) {
+        romExportAvail[i]=true;
+        romExportExists=true;
+      }
+    }
+  }
+
+  if (!romExportAvail[romTarget]) {
+    // find a new one
+    romTarget=DIV_ROM_ABSTRACT;
+    for (int i=0; i<DIV_ROM_MAX; i++) {
+      const DivROMExportDef* newDef=e->getROMExportDef((DivROMExportOptions)i);
+      if (newDef!=NULL) {
+        if (romExportAvail[i]) {
+          romTarget=(DivROMExportOptions)i;
+          romMultiFile=newDef->multiOutput;
+          romConfig=DivConfig();
+          if (newDef->fileExt==NULL) {
+            romFilterName="";
+            romFilterExt="";
+          } else {
+            romFilterName=newDef->fileType;
+            romFilterExt=newDef->fileExt;
+          }
+          break;
+        }
+      }
+    }
+  }
+}
+
 ImVec4 FurnaceGUI::channelColor(int ch) {
   switch (settings.channelColors) {
     case 0:
@@ -909,11 +1007,6 @@ Collapsed=0\n\
 [Window][Export Audio##FileDialog]\n\
 Pos=339,177\n\
 Size=601,400\n\
-Collapsed=0\n\
-\n\
-[Window][Rendering...]\n\
-Pos=585,342\n\
-Size=114,71\n\
 Collapsed=0\n\
 \n\
 [Window][Export VGM##FileDialog]\n\
@@ -1134,6 +1227,7 @@ void FurnaceGUI::play(int row) {
   memset(chanOscBright,0,DIV_MAX_CHANS*sizeof(float));
   e->walkSong(loopOrder,loopRow,loopEnd);
   memset(lastIns,-1,sizeof(int)*DIV_MAX_CHANS);
+  if (followPattern) makeCursorUndo();
   if (!followPattern) e->setOrder(curOrder);
   if (row>0) {
     if (!e->playToRow(row)) {
@@ -1794,6 +1888,14 @@ void FurnaceGUI::openFileDialog(FurnaceGUIFileDialogs type) {
         (settings.autoFillSave)?e->getIns(curIns)->name:""
       );
       break;
+    case GUI_FILE_INS_SAVE_ALL:
+      if (!dirExists(workingDirIns)) workingDirIns=getHomeDir();
+      hasOpened=fileDialog->openSelectDir(
+        _("Save All Instruments"),
+        workingDirIns,
+        dpiScale
+      );
+      break;
     case GUI_FILE_WAVE_OPEN:
     case GUI_FILE_WAVE_OPEN_REPLACE:
       if (!dirExists(workingDirWave)) workingDirWave=getHomeDir();
@@ -1830,6 +1932,14 @@ void FurnaceGUI::openFileDialog(FurnaceGUIFileDialogs type) {
       hasOpened=fileDialog->openSave(
         _("Save Wavetable"),
         {_("raw data"), ".raw"},
+        workingDirWave,
+        dpiScale
+      );
+      break;
+    case GUI_FILE_WAVE_SAVE_ALL:
+      if (!dirExists(workingDirWave)) workingDirWave=getHomeDir();
+      hasOpened=fileDialog->openSelectDir(
+        _("Save All Wavetables"),
         workingDirWave,
         dpiScale
       );
@@ -1876,6 +1986,14 @@ void FurnaceGUI::openFileDialog(FurnaceGUIFileDialogs type) {
         (settings.autoFillSave)?e->getSample(curSample)->name:""
       );
       break;
+    case GUI_FILE_SAMPLE_SAVE_ALL:
+      if (!dirExists(workingDirSample)) workingDirSample=getHomeDir();
+      hasOpened=fileDialog->openSelectDir(
+        _("Save All Samples"),
+        workingDirSample,
+        dpiScale
+      );
+      break;
     case GUI_FILE_EXPORT_AUDIO_ONE:
       if (!dirExists(workingDirAudioExport)) workingDirAudioExport=getHomeDir();
       hasOpened=fileDialog->openSave(
@@ -1916,25 +2034,6 @@ void FurnaceGUI::openFileDialog(FurnaceGUIFileDialogs type) {
         (settings.autoFillSave)?shortName:""
       );
       break;
-    case GUI_FILE_EXPORT_ZSM:
-      if (!dirExists(workingDirZSMExport)) workingDirZSMExport=getHomeDir();
-      hasOpened=fileDialog->openSave(
-        _("Export ZSM"),
-        {_("ZSM file"), "*.zsm"},
-        workingDirZSMExport,
-        dpiScale,
-        (settings.autoFillSave)?shortName:""
-      );
-      break;
-    case GUI_FILE_EXPORT_TIUNA:
-      if (!dirExists(workingDirROMExport)) workingDirROMExport=getHomeDir();
-      hasOpened=fileDialog->openSave(
-        "Export TIunA",
-        {"assembly files", "*.asm"},
-        workingDirROMExport,
-        dpiScale
-      );
-      break;
     case GUI_FILE_EXPORT_TEXT:
       if (!dirExists(workingDirROMExport)) workingDirROMExport=getHomeDir();
       hasOpened=fileDialog->openSave(
@@ -1956,7 +2055,22 @@ void FurnaceGUI::openFileDialog(FurnaceGUIFileDialogs type) {
       );
       break;
     case GUI_FILE_EXPORT_ROM:
-      showError(_("Coming soon!"));
+      if (!dirExists(workingDirROMExport)) workingDirROMExport=getHomeDir();
+      if (romMultiFile) {
+        hasOpened=fileDialog->openSelectDir(
+          _("Export ROM"),
+          workingDirROMExport,
+          dpiScale
+        );
+      } else {
+        hasOpened=fileDialog->openSave(
+          _("Export ROM"),
+          {romFilterName, "*"+romFilterExt},
+          workingDirROMExport,
+          dpiScale,
+          (settings.autoFillSave)?shortName:""
+        );
+      }
       break;
     case GUI_FILE_LOAD_MAIN_FONT:
       if (!dirExists(workingDirFont)) workingDirFont=getHomeDir();
@@ -2329,6 +2443,7 @@ int FurnaceGUI::load(String path) {
   undoHist.clear();
   redoHist.clear();
   updateWindowTitle();
+  updateROMExportAvail();
   updateScroll(0);
   if (!e->getWarnings().empty()) {
     showWarning(e->getWarnings(),GUI_WARN_GENERIC);
@@ -2479,7 +2594,40 @@ int FurnaceGUI::loadStream(String path) {
 
 
 void FurnaceGUI::exportAudio(String path, DivAudioExportModes mode) {
+  songOrdersLengths.clear();
+
+  int loopOrder=0;
+  int loopRow=0;
+  int loopEnd=0;
+  e->walkSong(loopOrder,loopRow,loopEnd);
+
+  e->findSongLength(loopOrder,loopRow,audioExportOptions.fadeOut,songFadeoutSectionLength,songHasSongEndCommand,songOrdersLengths,songLength); // for progress estimation
+
+  songLoopedSectionLength=songLength;
+  for (int i=0; i<loopOrder; i++) {
+    songLoopedSectionLength-=songOrdersLengths[i];
+  }
+  songLoopedSectionLength-=loopRow;
+
   e->saveAudio(path.c_str(),audioExportOptions);
+
+  totalFiles=0;
+  e->getTotalAudioFiles(totalFiles);
+  int totalLoops=0;
+
+  lengthOfOneFile=songLength;
+
+  if (!songHasSongEndCommand) {
+    e->getTotalLoops(totalLoops);
+
+    lengthOfOneFile+=songLoopedSectionLength*totalLoops;
+    lengthOfOneFile+=songFadeoutSectionLength; // account for fadeout
+  }
+
+  totalLength=lengthOfOneFile*totalFiles;
+
+  curProgress=0.0f;
+
   displayExporting=true;
 }
 
@@ -3601,6 +3749,7 @@ bool FurnaceGUI::loop() {
       ImGui::GetIO().AddKeyEvent(ImGuiKey_Backspace,false);
       injectBackUp=false;
     }
+
     while (SDL_PollEvent(&ev)) {
       WAKE_UP;
       ImGui_ImplSDL2_ProcessEvent(&ev);
@@ -3617,13 +3766,16 @@ bool FurnaceGUI::loop() {
         }
         case SDL_MOUSEBUTTONUP:
           pointUp(ev.button.x,ev.button.y,ev.button.button);
+          insEditMayBeDirty=true;
           break;
         case SDL_MOUSEBUTTONDOWN:
           pointDown(ev.button.x,ev.button.y,ev.button.button);
+          insEditMayBeDirty=true;
           break;
         case SDL_MOUSEWHEEL:
           wheelX+=ev.wheel.x;
           wheelY+=ev.wheel.y;
+          insEditMayBeDirty=true;
           break;
         case SDL_WINDOWEVENT:
           switch (ev.window.event) {
@@ -3700,12 +3852,14 @@ bool FurnaceGUI::loop() {
           if (!ImGui::GetIO().WantCaptureKeyboard) {
             keyDown(ev);
           }
+          insEditMayBeDirty=true;
 #ifdef IS_MOBILE
           injectBackUp=true;
 #endif
           break;
         case SDL_KEYUP:
           // for now
+          insEditMayBeDirty=true;
           break;
         case SDL_DROPFILE:
           if (ev.drop.file!=NULL) {
@@ -3715,8 +3869,9 @@ bool FurnaceGUI::loop() {
             }
             int sampleCountBefore=e->song.sampleLen;
             std::vector<DivInstrument*> instruments=e->instrumentFromFile(ev.drop.file,true,settings.readInsNames);
+            std::vector<DivSample*> samples = e->sampleFromFile(ev.drop.file);
             DivWavetable* droppedWave=NULL;
-            DivSample* droppedSample=NULL;
+            //DivSample* droppedSample=NULL;
             if (!instruments.empty()) {
               if (e->song.sampleLen!=sampleCountBefore) {
                 e->renderSamplesP();
@@ -3741,10 +3896,24 @@ bool FurnaceGUI::loop() {
               }
               nextWindow=GUI_WINDOW_WAVE_LIST;
               MARK_MODIFIED;
-            } else if ((droppedSample=e->sampleFromFile(ev.drop.file))!=NULL) {
+            } 
+            else if (!samples.empty()) 
+            {
+              if (e->song.sampleLen!=sampleCountBefore) {
+                //e->renderSamplesP();
+              }
+              if (!e->getWarnings().empty())
+              {
+                showWarning(e->getWarnings(),GUI_WARN_GENERIC);
+              }
               int sampleCount=-1;
-              sampleCount=e->addSamplePtr(droppedSample);
-              if (sampleCount>=0 && settings.selectAssetOnLoad) {
+              for (DivSample* s: samples)
+              {
+                sampleCount=e->addSamplePtr(s);
+              }
+              //sampleCount=e->addSamplePtr(droppedSample);
+              if (sampleCount>=0 && settings.selectAssetOnLoad) 
+              {
                 curSample=sampleCount;
                 updateSampleTex=true;
               }
@@ -4271,23 +4440,9 @@ bool FurnaceGUI::loop() {
             drawExportVGM();
             ImGui::EndMenu();
           }
-          int numZSMCompat=0;
-          for (int i=0; i<e->song.systemLen; i++) {
-            if ((e->song.system[i]==DIV_SYSTEM_VERA) || (e->song.system[i]==DIV_SYSTEM_YM2151)) numZSMCompat++;
-          }
-          if (numZSMCompat>0) {
-            if (ImGui::BeginMenu(_("export ZSM..."))) {
-              drawExportZSM();
-              ImGui::EndMenu();
-            }
-          }
-          int numAmiga=0;
-          for (int i=0; i<e->song.systemLen; i++) {
-            if (e->song.system[i]==DIV_SYSTEM_AMIGA) numAmiga++;
-          }
-          if (numAmiga && settings.iCannotWait) {
-            if (ImGui::BeginMenu(_("export Amiga validation data..."))) {
-              drawExportAmigaVal();
+          if (romExportExists) {
+            if (ImGui::BeginMenu(_("export ROM..."))) {
+              drawExportROM();
               ImGui::EndMenu();
             }
           }
@@ -4312,23 +4467,9 @@ bool FurnaceGUI::loop() {
             curExportType=GUI_EXPORT_VGM;
             displayExport=true;
           }
-          int numZSMCompat=0;
-          for (int i=0; i<e->song.systemLen; i++) {
-            if ((e->song.system[i]==DIV_SYSTEM_VERA) || (e->song.system[i]==DIV_SYSTEM_YM2151)) numZSMCompat++;
-          }
-          if (numZSMCompat>0) {
-            if (ImGui::MenuItem(_("export ZSM..."))) {
-              curExportType=GUI_EXPORT_ZSM;
-              displayExport=true;
-            }
-          }
-          int numAmiga=0;
-          for (int i=0; i<e->song.systemLen; i++) {
-            if (e->song.system[i]==DIV_SYSTEM_AMIGA) numAmiga++;
-          }
-          if (numAmiga && settings.iCannotWait) {
-            if (ImGui::MenuItem(_("export Amiga validation data..."))) {
-              curExportType=GUI_EXPORT_AMIGA_VAL;
+          if (romExportExists) {
+            if (ImGui::MenuItem(_("export ROM..."))) {
+              curExportType=GUI_EXPORT_ROM;
               displayExport=true;
             }
           }
@@ -4357,7 +4498,7 @@ bool FurnaceGUI::loop() {
         } else {
           if (ImGui::BeginMenu(_("add chip..."))) {
             exitDisabledTimer=1;
-            DivSystem picked=systemPicker();
+            DivSystem picked=systemPicker(false);
             if (picked!=DIV_SYSTEM_NULL) {
               if (!e->addSystem(picked)) {
                 showError(fmt::sprintf(_("cannot add chip! (%s)"),e->getLastError()));
@@ -4369,6 +4510,7 @@ bool FurnaceGUI::loop() {
                 autoDetectSystem();
               }
               updateWindowTitle();
+              updateROMExportAvail();
             }
             ImGui::EndMenu();
           }
@@ -4387,7 +4529,7 @@ bool FurnaceGUI::loop() {
             ImGui::Checkbox(_("Preserve channel positions"),&preserveChanPos);
             for (int i=0; i<e->song.systemLen; i++) {
               if (ImGui::BeginMenu(fmt::sprintf("%d. %s##_SYSC%d",i+1,getSystemName(e->song.system[i]),i).c_str())) {
-                DivSystem picked=systemPicker();
+                DivSystem picked=systemPicker(false);
                 if (picked!=DIV_SYSTEM_NULL) {
                   if (e->changeSystem(i,picked,preserveChanPos)) {
                     MARK_MODIFIED;
@@ -4395,6 +4537,7 @@ bool FurnaceGUI::loop() {
                       autoDetectSystem();
                     }
                     updateWindowTitle();
+                    updateROMExportAvail();
                   } else {
                     showError(fmt::sprintf(_("cannot change chip! (%s)"),e->getLastError()));
                   }
@@ -4419,6 +4562,7 @@ bool FurnaceGUI::loop() {
                   autoDetectSystem();
                   updateWindowTitle();
                 }
+                updateROMExportAvail();
               }
             }
             ImGui::EndMenu();
@@ -4654,8 +4798,8 @@ bool FurnaceGUI::loop() {
                 if (maxVol<1 || p->data[cursor.y][3]>maxVol) {
                   info=fmt::sprintf(_("Set volume: %d (%.2X, INVALID!)"),p->data[cursor.y][3],p->data[cursor.y][3]);
                 } else {
-                  float realVol=e->mapVelocity(cursor.xCoarse,(float)p->data[cursor.y][3]/(float)maxVol);
-                  info=fmt::sprintf(_("Set volume: %d (%.2X, %d%%)"),p->data[cursor.y][3],p->data[cursor.y][3],(int)(realVol*100.0f/(float)maxVol));
+                  float realVol=e->getGain(cursor.xCoarse,p->data[cursor.y][3]);
+                  info=fmt::sprintf(_("Set volume: %d (%.2X, %d%%)"),p->data[cursor.y][3],p->data[cursor.y][3],(int)(realVol*100.0f));
                 }
                 hasInfo=true;
               }
@@ -4883,6 +5027,7 @@ bool FurnaceGUI::loop() {
         case GUI_FILE_INS_OPEN_REPLACE:
         case GUI_FILE_INS_SAVE:
         case GUI_FILE_INS_SAVE_DMP:
+        case GUI_FILE_INS_SAVE_ALL:
           workingDirIns=fileDialog->getPath()+DIR_SEPARATOR_STR;
           break;
         case GUI_FILE_WAVE_OPEN:
@@ -4890,6 +5035,7 @@ bool FurnaceGUI::loop() {
         case GUI_FILE_WAVE_SAVE:
         case GUI_FILE_WAVE_SAVE_DMW:
         case GUI_FILE_WAVE_SAVE_RAW:
+        case GUI_FILE_WAVE_SAVE_ALL:
           workingDirWave=fileDialog->getPath()+DIR_SEPARATOR_STR;
           break;
         case GUI_FILE_SAMPLE_OPEN:
@@ -4898,6 +5044,7 @@ bool FurnaceGUI::loop() {
         case GUI_FILE_SAMPLE_OPEN_REPLACE_RAW:
         case GUI_FILE_SAMPLE_SAVE:
         case GUI_FILE_SAMPLE_SAVE_RAW:
+        case GUI_FILE_SAMPLE_SAVE_ALL:
           workingDirSample=fileDialog->getPath()+DIR_SEPARATOR_STR;
           break;
         case GUI_FILE_EXPORT_AUDIO_ONE:
@@ -4908,11 +5055,7 @@ bool FurnaceGUI::loop() {
         case GUI_FILE_EXPORT_VGM:
           workingDirVGMExport=fileDialog->getPath()+DIR_SEPARATOR_STR;
           break;
-        case GUI_FILE_EXPORT_ZSM:
-          workingDirZSMExport=fileDialog->getPath()+DIR_SEPARATOR_STR;
-          break;
         case GUI_FILE_EXPORT_ROM:
-        case GUI_FILE_EXPORT_TIUNA:
         case GUI_FILE_EXPORT_TEXT:
         case GUI_FILE_EXPORT_CMDSTREAM:
           workingDirROMExport=fileDialog->getPath()+DIR_SEPARATOR_STR;
@@ -5008,8 +5151,8 @@ bool FurnaceGUI::loop() {
           if (curFileDialog==GUI_FILE_EXPORT_VGM) {
             checkExtension(".vgm");
           }
-          if (curFileDialog==GUI_FILE_EXPORT_ZSM) {
-            checkExtension(".zsm");
+          if (curFileDialog==GUI_FILE_EXPORT_ROM) {
+            checkExtension(romFilterExt.c_str());
           }
           if (curFileDialog==GUI_FILE_EXPORT_TEXT) {
             checkExtension(".txt");
@@ -5106,6 +5249,81 @@ bool FurnaceGUI::loop() {
                 }
               }
               break;
+            case GUI_FILE_INS_SAVE_ALL: {
+              String errors;
+              for (int i=0; i<e->song.insLen; i++) {
+                String nextPath=copyOfName;
+                nextPath+=DIR_SEPARATOR_STR;
+                nextPath+=fmt::sprintf("%.2X_",i);
+                for (char j: e->song.ins[i]->name) {
+                  switch (j) {
+                    // these chars are reserved
+                    case '/': case '<': case '>': case ':': case '"': case '\\': case '|': case '?': case '*':
+                      nextPath+='_';
+                      break;
+                    default:
+                      nextPath+=j;
+                      break;
+                  }
+                }
+                nextPath+=".fui";
+                logV("%s",nextPath);
+                if (!e->song.ins[i]->save(nextPath.c_str(),&e->song,settings.writeInsNames)) {
+                  errors+=fmt::sprintf("%s: could not save!\n",e->song.ins[i]->name);
+                }
+              }
+
+              if (!errors.empty()) {
+                showError(errors);
+              }
+              break;
+            }
+            case GUI_FILE_WAVE_SAVE_ALL: {
+              String errors;
+              for (int i=0; i<e->song.waveLen; i++) {
+                String nextPath=copyOfName;
+                nextPath+=DIR_SEPARATOR_STR;
+                nextPath+=fmt::sprintf("%.2X.fuw",i);
+                logV("%s",nextPath);
+                if (!e->song.wave[i]->save(nextPath.c_str())) {
+                  errors+=fmt::sprintf("%d: could not save!\n",i);
+                }
+              }
+
+              if (!errors.empty()) {
+                showError(errors);
+              }
+              break;
+            }
+            case GUI_FILE_SAMPLE_SAVE_ALL: {
+              String errors;
+              for (int i=0; i<e->song.sampleLen; i++) {
+                String nextPath=copyOfName;
+                nextPath+=DIR_SEPARATOR_STR;
+                nextPath+=fmt::sprintf("%.2X_",i);
+                for (char j: e->song.sample[i]->name) {
+                  switch (j) {
+                    // these chars are reserved
+                    case '/': case '<': case '>': case ':': case '"': case '\\': case '|': case '?': case '*':
+                      nextPath+='_';
+                      break;
+                    default:
+                      nextPath+=j;
+                      break;
+                  }
+                }
+                nextPath+=".wav";
+                logV("%s",nextPath);
+                if (!e->song.sample[i]->save(nextPath.c_str())) {
+                  errors+=fmt::sprintf("%s: could not save!\n",e->song.sample[i]->name);
+                }
+              }
+
+              if (!errors.empty()) {
+                showError(errors);
+              }
+              break;
+            }
             case GUI_FILE_WAVE_SAVE:
               if (curWave>=0 && curWave<(int)e->song.wave.size()) {
                 if (e->song.wave[curWave]->save(copyOfName.c_str())) {
@@ -5131,24 +5349,43 @@ bool FurnaceGUI::loop() {
               String errs=_("there were some errors while loading samples:\n");
               bool warn=false;
               for (String i: fileDialog->getFileName()) {
-                DivSample* s=e->sampleFromFile(i.c_str());
-                if (s==NULL) {
+                std::vector<DivSample*> samples=e->sampleFromFile(i.c_str());
+                if (samples.empty()) {
                   if (fileDialog->getFileName().size()>1) {
                     warn=true;
                     errs+=fmt::sprintf("- %s: %s\n",i,e->getLastError());
-                  } else {
+                  } else {;
                     showError(e->getLastError());
                   }
-                } else {
-                  if (e->addSamplePtr(s)==-1) {
-                    if (fileDialog->getFileName().size()>1) {
-                      warn=true;
-                      errs+=fmt::sprintf("- %s: %s\n",i,e->getLastError());
-                    } else {
-                      showError(e->getLastError());
+                } 
+                else 
+                {
+                  if((int)samples.size() == 1)
+                  {
+                    if (e->addSamplePtr(samples[0]) == -1)
+                    {
+                      if (fileDialog->getFileName().size()>1)
+                      {
+                        warn=true;
+                        errs+=fmt::sprintf("- %s: %s\n",i,e->getLastError());
+                      } 
+                      else 
+                      {
+                        showError(e->getLastError());
+                      }
+                    } 
+                    else 
+                    {
+                      MARK_MODIFIED;
                     }
-                  } else {
-                    MARK_MODIFIED;
+                  }
+                  else
+                  {
+                    for (DivSample* s: samples) { //ask which samples to load!
+                      pendingSamples.push_back(std::make_pair(s,false));
+                    }
+                    displayPendingSamples=true;
+                    replacePendingSample = false;
                   }
                 }
               }
@@ -5157,24 +5394,44 @@ bool FurnaceGUI::loop() {
               }
               break;
             }
-            case GUI_FILE_SAMPLE_OPEN_REPLACE: {
-              DivSample* s=e->sampleFromFile(copyOfName.c_str());
-              if (s==NULL) {
+             case GUI_FILE_SAMPLE_OPEN_REPLACE: 
+            {
+              std::vector<DivSample*> samples=e->sampleFromFile(copyOfName.c_str());
+              if (samples.empty()) 
+              {
                 showError(e->getLastError());
-              } else {
-                if (curSample>=0 && curSample<(int)e->song.sample.size()) {
-                  e->lockEngine([this,s]() {
-                    // if it crashes here please tell me...
-                    DivSample* oldSample=e->song.sample[curSample];
-                    e->song.sample[curSample]=s;
-                    delete oldSample;
-                    e->renderSamples();
-                    MARK_MODIFIED;
-                  });
-                  updateSampleTex=true;
-                } else {
-                  showError(_("...but you haven't selected a sample!"));
-                  delete s;
+              } 
+              else 
+              {
+                if((int)samples.size() == 1)
+                {
+                  if (curSample>=0 && curSample<(int)e->song.sample.size()) 
+                  {
+                    DivSample* s = samples[0];
+                    e->lockEngine([this, s]()
+                    {
+                      // if it crashes here please tell me...
+                      DivSample* oldSample=e->song.sample[curSample];
+                      e->song.sample[curSample]= s;
+                      delete oldSample;
+                      e->renderSamples();
+                      MARK_MODIFIED;
+                    });
+                    updateSampleTex=true;
+                  } 
+                  else 
+                  {
+                    showError(_("...but you haven't selected a sample!"));
+                    delete samples[0];
+                  }
+                }
+                else
+                {
+                  for (DivSample* s: samples) { //ask which samples to load!
+                    pendingSamples.push_back(std::make_pair(s,false));
+                  }
+                  displayPendingSamples=true;
+                  replacePendingSample = true;
                 }
               }
               break;
@@ -5372,50 +5629,20 @@ bool FurnaceGUI::loop() {
               }
               break;
             }
-            case GUI_FILE_EXPORT_ZSM: {
-              SafeWriter* w=e->saveZSM(zsmExportTickRate,zsmExportLoop,zsmExportOptimize);
-              if (w!=NULL) {
-                FILE* f=ps_fopen(copyOfName.c_str(),"wb");
-                if (f!=NULL) {
-                  fwrite(w->getFinalBuf(),1,w->size(),f);
-                  fclose(f);
-                  pushRecentSys(copyOfName.c_str());
-                } else {
-                  showError(_("could not open file!"));
-                }
-                w->finish();
-                delete w;
-                if (!e->getWarnings().empty()) {
-                  showWarning(e->getWarnings(),GUI_WARN_GENERIC);
-                }
-              } else {
-                showError(fmt::sprintf(_("Could not write ZSM! (%s)"),e->getLastError()));
-              }
-              break;
-            }
-            case GUI_FILE_EXPORT_TIUNA: {
-              SafeWriter* w=e->saveTiuna(willExport,asmBaseLabel.c_str(),tiunaFirstBankSize,tiunaOtherBankSize);
-              if (w!=NULL) {
-                FILE* f=ps_fopen(copyOfName.c_str(),"wb");
-                if (f!=NULL) {
-                  fwrite(w->getFinalBuf(),1,w->size(),f);
-                  fclose(f);
-                  pushRecentSys(copyOfName.c_str());
-                } else {
-                  showError("could not open file!");
-                }
-                w->finish();
-                delete w;
-                if (!e->getWarnings().empty()) {
-                  showWarning(e->getWarnings(),GUI_WARN_GENERIC);
-                }
-              } else {
-                showError(fmt::sprintf("Could not write TIunA! (%s)",e->getLastError()));
-              }
-              break;
-            }
             case GUI_FILE_EXPORT_ROM:
-              showError(_("Coming soon!"));
+              romExportPath=copyOfName;
+              pendingExport=e->buildROM(romTarget);
+              if (pendingExport==NULL) {
+                showError("could not create exporter! you may want to report this issue...");
+              } else {
+                pendingExport->setConf(romConfig);
+                if (pendingExport->go(e)) {
+                  displayExportingROM=true;
+                  romExportSave=true;
+                } else {
+                  showError("could not begin exporting process! TODO: elaborate");
+                }
+              }
               break;
             case GUI_FILE_EXPORT_TEXT: {
               SafeWriter* w=e->saveText(false);
@@ -5562,6 +5789,11 @@ bool FurnaceGUI::loop() {
       ImGui::OpenPopup(_("Select Instrument"));
     }
 
+    if (displayPendingSamples) {
+      displayPendingSamples=false;
+      ImGui::OpenPopup(_("Select Sample"));
+    }
+
     if (displayPendingRawSample) {
       displayPendingRawSample=false;
       ImGui::OpenPopup(_("Import Raw Sample"));
@@ -5580,6 +5812,11 @@ bool FurnaceGUI::loop() {
     if (displayExporting) {
       displayExporting=false;
       ImGui::OpenPopup(_("Rendering..."));
+    }
+
+    if (displayExportingROM) {
+      displayExportingROM=false;
+      ImGui::OpenPopup(_("ROM Export Progress"));
     }
 
     if (displayNew) {
@@ -5601,6 +5838,7 @@ bool FurnaceGUI::loop() {
         selEnd=SelectionPoint();
         cursor=SelectionPoint();
         updateWindowTitle();
+        updateROMExportAvail();
       } else {
         ImGui::OpenPopup(_("New Song"));
       }
@@ -5633,8 +5871,52 @@ bool FurnaceGUI::loop() {
     MEASURE_BEGIN(popup);
 
     centerNextWindow(_("Rendering..."),canvasW,canvasH);
-    if (ImGui::BeginPopupModal(_("Rendering..."),NULL,ImGuiWindowFlags_AlwaysAutoResize)) {
-      ImGui::Text(_("Please wait..."));
+    // ImGui::SetNextWindowSize(ImVec2(0.0f,0.0f));
+    if (ImGui::BeginPopupModal(_("Rendering..."),NULL,ImGuiWindowFlags_NoResize|ImGuiWindowFlags_NoMove|ImGuiWindowFlags_NoSavedSettings)) {
+      // WHAT the HELL?!
+      WAKE_UP;
+      if (audioExportOptions.mode!=DIV_EXPORT_MODE_MANY_CHAN) {
+        ImGui::Text(_("Please wait..."));
+      }
+      float* progressLambda=&curProgress;
+      int curPosInRows=0;
+      int* curPosInRowsLambda=&curPosInRows;
+      int loopsLeft=0;
+      int* loopsLeftLambda=&loopsLeft;
+      int totalLoops=0;
+      int* totalLoopsLambda=&totalLoops;
+      int curFile=0;
+      int* curFileLambda=&curFile;
+      if (e->isExporting()) {
+        e->lockEngine(
+          [this, progressLambda, curPosInRowsLambda, curFileLambda, loopsLeftLambda, totalLoopsLambda] () {
+            int curRow=0; int curOrder=0;
+            e->getCurSongPos(curRow, curOrder);
+            *curFileLambda=0;
+            e->getCurFileIndex(*curFileLambda);
+            *curPosInRowsLambda=curRow;
+            for (int i=0; i<curOrder; i++) *curPosInRowsLambda+=songOrdersLengths[i];
+            if (!songHasSongEndCommand) {
+              e->getLoopsLeft(*loopsLeftLambda);
+              e->getTotalLoops(*totalLoopsLambda);
+              if ((*totalLoopsLambda)!=(*loopsLeftLambda)) { // we are going 2nd, 3rd, etc. time through the song
+                *curPosInRowsLambda-=(songLength-songLoopedSectionLength); // a hack so progress bar does not jump?
+              }
+              if (e->getIsFadingOut()) { // we are in fadeout??? why it works like that bruh
+                // LIVE WITH IT damn it
+                *curPosInRowsLambda-=(songLength-songLoopedSectionLength); // a hack so progress bar does not jump?
+              }
+            }
+            *progressLambda=(float)((*curPosInRowsLambda)+((*totalLoopsLambda)-(*loopsLeftLambda))*songLength+lengthOfOneFile*(*curFileLambda))/(float)totalLength;
+          }
+        );
+      }
+
+      ImGui::Text(_("Row %d of %d"),curPosInRows+((totalLoops)-(loopsLeft))*songLength,lengthOfOneFile);
+      if (audioExportOptions.mode==DIV_EXPORT_MODE_MANY_CHAN) ImGui::Text(_("Channel %d of %d"),curFile+1,totalFiles);
+
+      ImGui::ProgressBar(curProgress,ImVec2(320.0f*dpiScale,0),fmt::sprintf("%.2f%%",curProgress*100.0f).c_str());
+
       if (ImGui::Button(_("Abort"))) {
         if (e->haltAudioFile()) {
           ImGui::CloseCurrentPopup();
@@ -5643,6 +5925,94 @@ bool FurnaceGUI::loop() {
       if (!e->isExporting()) {
         e->finishAudioFile();
         ImGui::CloseCurrentPopup();
+      }
+      ImGui::EndPopup();
+    }
+
+    ImVec2 romExportMinSize=mobileUI?ImVec2(canvasW-(portrait?0:(60.0*dpiScale)),canvasH-60.0*dpiScale):ImVec2(400.0f*dpiScale,200.0f*dpiScale);
+    ImVec2 romExportMaxSize=ImVec2(canvasW-((mobileUI && !portrait)?(60.0*dpiScale):0),canvasH-(mobileUI?(60.0*dpiScale):0));
+
+    centerNextWindow(_("ROM Export Progress"),canvasW,canvasH);
+    ImGui::SetNextWindowSizeConstraints(romExportMinSize,romExportMaxSize);
+    if (ImGui::BeginPopupModal(_("ROM Export Progress"),NULL)) {
+      if (pendingExport==NULL) {
+        ImGui::TextWrapped("%s",_("...ooooor you could try asking me a new ROM export?"));
+        ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+        if (ImGui::Button(_("Erm what the sigma???"),ImVec2(ImGui::GetContentRegionAvail().x,0.0f))) {
+          ImGui::CloseCurrentPopup();
+        }
+      } else {
+        int progIndex=0;
+        while (true) {
+          DivROMExportProgress p=pendingExport->getProgress(progIndex);
+          if (p.name.empty()) break;
+          ImGui::Text("%s: %d%%",p.name.c_str(),(int)round(p.amount*100.0f));
+          ImGui::ProgressBar(p.amount,ImVec2(-FLT_MIN,0));
+          progIndex++;
+        }
+        ImVec2 romLogSize=ImGui::GetContentRegionAvail();
+        romLogSize.y-=ImGui::GetFrameHeightWithSpacing();
+        if (romLogSize.y<60.0f*dpiScale) romLogSize.y=60.0f*dpiScale;
+        if (ImGui::BeginChild("Export Log",romLogSize,true)) {
+          pendingExport->logLock.lock();
+          ImGui::PushFont(patFont);
+          for (String& i: pendingExport->exportLog) {
+            ImGui::TextWrapped("%s",i.c_str());
+          }
+          if (romExportSave) {
+            ImGui::SetScrollY(ImGui::GetScrollMaxY());
+          }
+          ImGui::PopFont();
+          pendingExport->logLock.unlock();
+        }
+        ImGui::EndChild();
+        if (pendingExport->isRunning()) {
+          WAKE_UP;
+          if (ImGui::Button(_("Abort"),ImVec2(ImGui::GetContentRegionAvail().x,0.0f))) {
+            pendingExport->abort();
+            delete pendingExport;
+            pendingExport=NULL;
+            romExportSave=false;
+            ImGui::CloseCurrentPopup();
+          }
+        } else {
+          if (romExportSave) {
+            pendingExport->wait();
+            if (!pendingExport->hasFailed()) {
+              // save files here (romExportPath)
+              for (DivROMExportOutput& i: pendingExport->getResult()) {
+                String path=romExportPath;
+                if (romMultiFile) {
+                  path+=DIR_SEPARATOR_STR;
+                  path+=i.name;
+                }
+                FILE* outFile=ps_fopen(path.c_str(),"wb");
+                if (outFile!=NULL) {
+                  fwrite(i.data->getFinalBuf(),1,i.data->size(),outFile);
+                  fclose(outFile);
+                } else {
+                  // TODO: handle failure here
+                }
+                i.data->finish();
+                delete i.data;
+              }
+            }
+            romExportSave=false;
+          }
+          if (pendingExport!=NULL) {
+            if (pendingExport->hasFailed()) {
+              ImGui::AlignTextToFramePadding();
+              ImGui::TextUnformatted(_("Error!"));
+              ImGui::SameLine();
+            }
+          }
+          ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
+          if (ImGui::Button(_("OK"),ImVec2(ImGui::GetContentRegionAvail().x,0.0f))) {
+            delete pendingExport;
+            pendingExport=NULL;
+            ImGui::CloseCurrentPopup();
+          }
+        }
       }
       ImGui::EndPopup();
     }
@@ -6063,6 +6433,7 @@ bool FurnaceGUI::loop() {
               updateWindowTitle();
               MARK_MODIFIED;
             }
+            updateROMExportAvail();
             ImGui::CloseCurrentPopup();
           }
           ImGui::SameLine();
@@ -6292,6 +6663,191 @@ bool FurnaceGUI::loop() {
         }
         pendingIns.clear();
       }
+      ImGui::EndPopup();
+    }
+
+    // TODO: fix style
+    centerNextWindow(_("Select Sample"),canvasW,canvasH);
+    if (ImGui::BeginPopupModal(_("Select Sample"),NULL,ImGuiWindowFlags_AlwaysAutoResize)) {
+      bool quitPlease=false;
+
+      ImGui::AlignTextToFramePadding();
+      ImGui::Text(_("this is a sample bank! select which ones to load:"));
+      ImGui::SameLine();
+      if (ImGui::Button(_("All"))) {
+        for (std::pair<DivSample*,bool>& i: pendingSamples) {
+          i.second=true;
+        }
+      }
+      ImGui::SameLine();
+      if (ImGui::Button(_("None"))) {
+        for (std::pair<DivSample*,bool>& i: pendingSamples) {
+          i.second=false;
+        }
+      }
+      bool reissueSearch=false;
+
+      bool anySelected=false;
+      float sizeY=ImGui::GetFrameHeightWithSpacing()*pendingSamples.size();
+      if (sizeY>(canvasH-180.0*dpiScale)) 
+      {
+        sizeY=canvasH-180.0*dpiScale;
+        if (sizeY<60.0*dpiScale) sizeY=60.0*dpiScale;
+      }
+      if (ImGui::BeginTable("PendingSamplesList",1,ImGuiTableFlags_ScrollY,ImVec2(0.0f,sizeY))) 
+      {
+        if (sampleBankSearchQuery.empty())
+        {
+          for (size_t i=0; i<pendingSamples.size(); i++) 
+          {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            String id=fmt::sprintf("%d: %s",(int)i,pendingSamples[i].first->name);
+            if (pendingInsSingle) 
+            {
+              if (ImGui::Selectable(id.c_str())) 
+              {
+                pendingSamples[i].second=true;
+                quitPlease=true;
+              }
+            } 
+            else 
+            {
+              // TODO:fixstyle from hereonwards
+              ImGuiIO& io = ImGui::GetIO();
+              if(ImGui::Checkbox(id.c_str(),&pendingSamples[i].second) && io.KeyShift)
+              {
+                for(int jj = (int)i - 1; jj >= 0; jj--)
+                {
+                  if(pendingSamples[jj].second) //pressed shift and there's selected item above
+                  {
+                    for(int k = jj; k < (int)i; k++)
+                    {
+                      pendingSamples[k].second = true;
+                    }
+
+                    break;
+                  }
+                }
+              }
+            }
+            if (pendingSamples[i].second) anySelected=true;
+          }
+        }
+        else //display search results
+        {
+          if(reissueSearch)
+          {
+            String lowerCase=sampleBankSearchQuery;
+
+            for (char& ii: lowerCase) 
+            {
+              if (ii>='A' && ii<='Z') ii+='a'-'A';
+            }
+
+            sampleBankSearchResults.clear();
+            for (int j=0; j < (int)pendingSamples.size(); j++) 
+            {
+              String lowerCase1 = pendingSamples[j].first->name;
+
+              for (char& ii: lowerCase1) 
+              {
+                if (ii>='A' && ii<='Z') ii+='a'-'A';
+              }
+
+              if (lowerCase1.find(lowerCase)!=String::npos) 
+              {
+                sampleBankSearchResults.push_back(std::make_pair(pendingSamples[j].first, pendingSamples[j].second));
+              }
+            }
+          }
+
+          for (size_t i=0; i<sampleBankSearchResults.size(); i++)
+          {
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            String id=fmt::sprintf("%d: %s",(int)i,sampleBankSearchResults[i].first->name);
+
+            ImGuiIO& io = ImGui::GetIO();
+            if(ImGui::Checkbox(id.c_str(),&sampleBankSearchResults[i].second) && io.KeyShift)
+            {
+              for(int jj = (int)i - 1; jj >= 0; jj--)
+              {
+                if(sampleBankSearchResults[jj].second) //pressed shift and there's selected item above
+                {
+                  for(int k = jj; k < (int)i; k++)
+                  {
+                    sampleBankSearchResults[k].second = true;
+                  }
+
+                  break;
+                }
+              }
+            }
+            if (sampleBankSearchResults[i].second) anySelected=true;
+          }
+
+          for (size_t i=0; i<pendingSamples.size(); i++)
+          {
+            if(sampleBankSearchResults.size() > 0)
+            {
+              for (size_t j=0; j<sampleBankSearchResults.size(); j++)
+              {
+                if(sampleBankSearchResults[j].first == pendingSamples[i].first && sampleBankSearchResults[j].second && pendingSamples[i].first != NULL)
+                {
+                  pendingSamples[i].second = true;
+                  if (pendingSamples[i].second) anySelected=true;
+                  break;
+                }
+              }
+            }
+          }
+        }
+        ImGui::EndTable();
+      }
+
+      ImGui::BeginDisabled(!anySelected);
+      if (ImGui::Button(_("OK"))) {
+        quitPlease=true;
+      }
+      ImGui::EndDisabled();
+      ImGui::SameLine();
+
+      if (ImGui::Button(_("Cancel")) || ImGui::IsKeyPressed(ImGuiKey_Escape)) {
+        for (std::pair<DivSample*,bool>& i: pendingSamples) {
+          i.second=false;
+        }
+        quitPlease=true;
+      }
+      if (quitPlease) 
+      {
+        ImGui::CloseCurrentPopup();
+        int counter = 0;
+        for (std::pair<DivSample*,bool>& i: pendingSamples) 
+        {
+          if (!i.second)
+          {
+            delete i.first;
+          }
+          else
+          {
+            if(counter == 0 && replacePendingSample)
+            {
+              *e->song.sample[curSample]=*i.first;
+              replacePendingSample = false;
+            }
+            else
+            {
+              e->addSamplePtr(i.first);
+            }
+          }
+          counter++;
+        }
+
+        curSample = (int)e->song.sample.size() - 1;
+        pendingSamples.clear();
+      }
+
       ImGui::EndPopup();
     }
 
@@ -6683,6 +7239,11 @@ bool FurnaceGUI::loop() {
       commitSettings();
       willCommit=false;
     }
+
+    // To check for instrument editor modification, we need an up-to-date `insEditMayBeDirty`
+    // (based on incoming user input events), and we want any possible instrument modifications
+    // to already have been made.
+    checkRecordInstrumentUndoStep();
 
     if (shallDetectScale) {
       if (--shallDetectScale<1) {
@@ -7081,6 +7642,7 @@ bool FurnaceGUI::init() {
   }
 
   updateWindowTitle();
+  updateROMExportAvail();
 
   logV("max texture size: %dx%d",rend->getMaxTextureWidth(),rend->getMaxTextureHeight());
 
@@ -7306,7 +7868,15 @@ bool FurnaceGUI::init() {
 #endif
 
   compatFormats+="*.dmc ";
-  compatFormats+="*.brr";
+  compatFormats+="*.brr ";
+
+  compatFormats+="*.ppc ";
+  compatFormats+="*.pps ";
+  compatFormats+="*.pvi ";
+  compatFormats+="*.pdx ";
+  compatFormats+="*.pzi ";
+  compatFormats+="*.p86 ";
+  compatFormats+="*.p";
   audioLoadFormats[1]=compatFormats;
 
   audioLoadFormats.push_back(_("NES DPCM data"));
@@ -7314,6 +7884,27 @@ bool FurnaceGUI::init() {
 
   audioLoadFormats.push_back(_("SNES Bit Rate Reduction"));
   audioLoadFormats.push_back("*.brr");
+
+  audioLoadFormats.push_back(_("PMD YM2608 ADPCM-B sample bank"));
+  audioLoadFormats.push_back("*.ppc");
+
+  audioLoadFormats.push_back(_("PDR 4-bit AY-3-8910 sample bank"));
+  audioLoadFormats.push_back("*.pps");
+
+  audioLoadFormats.push_back(_("FMP YM2608 ADPCM-B sample bank"));
+  audioLoadFormats.push_back("*.pvi");
+
+  audioLoadFormats.push_back(_("MDX OKI ADPCM sample bank"));
+  audioLoadFormats.push_back("*.pdx");
+
+  audioLoadFormats.push_back(_("FMP 8-bit PCM sample bank"));
+  audioLoadFormats.push_back("*.pzi");
+
+  audioLoadFormats.push_back(_("PMD 8-bit PCM sample bank"));
+  audioLoadFormats.push_back("*.p86");
+
+  audioLoadFormats.push_back(_("PMD OKI ADPCM sample bank"));
+  audioLoadFormats.push_back("*.p");
 
   audioLoadFormats.push_back(_("all files"));
   audioLoadFormats.push_back("*");
@@ -7331,7 +7922,6 @@ void FurnaceGUI::syncState() {
   workingDirSample=e->getConfString("lastDirSample",workingDir);
   workingDirAudioExport=e->getConfString("lastDirAudioExport",workingDir);
   workingDirVGMExport=e->getConfString("lastDirVGMExport",workingDir);
-  workingDirZSMExport=e->getConfString("lastDirZSMExport",workingDir);
   workingDirROMExport=e->getConfString("lastDirROMExport",workingDir);
   workingDirFont=e->getConfString("lastDirFont",workingDir);
   workingDirColors=e->getConfString("lastDirColors",workingDir);
@@ -7490,7 +8080,6 @@ void FurnaceGUI::commitState(DivConfig& conf) {
   conf.set("lastDirSample",workingDirSample);
   conf.set("lastDirAudioExport",workingDirAudioExport);
   conf.set("lastDirVGMExport",workingDirVGMExport);
-  conf.set("lastDirZSMExport",workingDirZSMExport);
   conf.set("lastDirROMExport",workingDirROMExport);
   conf.set("lastDirFont",workingDirFont);
   conf.set("lastDirColors",workingDirColors);
@@ -7708,8 +8297,6 @@ FurnaceGUI::FurnaceGUI():
   displayError(false),
   displayExporting(false),
   vgmExportLoop(true),
-  zsmExportLoop(true),
-  zsmExportOptimize(true),
   vgmExportPatternHints(false),
   vgmExportDirectStream(false),
   displayInsTypeList(false),
@@ -7737,6 +8324,9 @@ FurnaceGUI::FurnaceGUI():
   snesFilterHex(false),
   modTableHex(false),
   displayEditString(false),
+  displayPendingSamples(false),
+  replacePendingSample(false),
+  displayExportingROM(false),
   changeCoarse(false),
   mobileEdit(false),
   killGraphics(false),
@@ -7749,10 +8339,6 @@ FurnaceGUI::FurnaceGUI():
   vgmExportVersion(0x171),
   vgmExportTrailingTicks(-1),
   drawHalt(10),
-  zsmExportTickRate(60),
-  asmBaseLabel(""),
-  tiunaFirstBankSize(3072),
-  tiunaOtherBankSize(4096-48),
   macroPointSize(16),
   waveEditStyle(0),
   displayInsTypeListMakeInsSample(-1),
@@ -7819,11 +8405,21 @@ FurnaceGUI::FurnaceGUI():
   bigFont(NULL),
   headFont(NULL),
   fontRange(NULL),
+  songLength(0),
+  songLoopedSectionLength(0),
+  songFadeoutSectionLength(0),
+  songHasSongEndCommand(false),
+  lengthOfOneFile(0),
+  totalLength(0),
+  curProgress(0.0f),
+  totalFiles(0),
   localeRequiresJapanese(false),
   localeRequiresChinese(false),
   localeRequiresChineseTrad(false),
   localeRequiresKorean(false),
   prevInsData(NULL),
+  cachedCurInsPtr(NULL),
+  insEditMayBeDirty(false),
   pendingLayoutImport(NULL),
   pendingLayoutImportLen(0),
   pendingLayoutImportStep(0),
@@ -8213,7 +8809,12 @@ FurnaceGUI::FurnaceGUI():
   curTutorial(-1),
   curTutorialStep(0),
   dmfExportVersion(0),
-  curExportType(GUI_EXPORT_NONE) {
+  curExportType(GUI_EXPORT_NONE),
+  romTarget(DIV_ROM_ABSTRACT),
+  romMultiFile(false),
+  romExportSave(false),
+  pendingExport(NULL),
+  romExportExists(false) {
   // value keys
   valueKeys[SDLK_0]=0;
   valueKeys[SDLK_1]=1;
@@ -8331,6 +8932,10 @@ FurnaceGUI::FurnaceGUI():
   memset(emptyLabel2,0,32);
   // effect sorting
   memset(effectsShow,1,sizeof(bool)*10);
+
+  memset(romExportAvail,0,sizeof(bool)*DIV_ROM_MAX);
+
+  songOrdersLengths.clear();
 
   strncpy(noteOffLabel,"OFF",32);
   strncpy(noteRelLabel,"===",32);

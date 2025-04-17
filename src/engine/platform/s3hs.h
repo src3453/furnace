@@ -17,6 +17,19 @@ class DivPlatformS3HS: public DivDispatch {
     bool pcmLoop;
     int hasOffset;
     int pan;
+    int modmode;
+    int opvols[8];
+    int opwaves[8];
+    int opfreqs[8];
+    int feedback;
+    int modmode_o;
+    int pcmOffset;
+    int directWriteAddr;
+    bool opvoloverride[8];
+    bool opwaveoverride[8];
+    bool opfreqoverride[8];
+    bool modmodeoverride;
+    bool feedbackoverride;
     DivWaveSynth ws;
     Channel(): 
       SharedChannel<int>(0),
@@ -38,14 +51,24 @@ class DivPlatformS3HS: public DivDispatch {
       amp(0),
       pcmLoop(false),
       hasOffset(0),
-      pan(0){}
+      pan(0),
+      pcmOffset(0){}
   };
+  bool enableComp;
+  bool enableEQ;
+  int compThresh;
+  int compRatio;
+  int compVolume;
+  int EQlo;
+  int EQmid;
+  int EQhi;
   S3HS_sound* cpt;
-  unsigned char regPool[704];
+  unsigned char regPool[1024];
   DivMemoryComposition memCompo;
   Channel chan[12];
   DivDispatchOscBuffer* oscBuf[12];
   bool isMuted[12];
+  int muteGain[12];
   unsigned char chans;  
   unsigned int sampleMemSize;
   unsigned char ilCtrl, ilSize, fil1;
@@ -56,6 +79,7 @@ class DivPlatformS3HS: public DivDispatch {
   unsigned int sampleOffSU[256];
   friend void putDispatchChip(void*,int);
   friend void putDispatchChan(void*,int,int);
+  int volmax=0;
   public:
     struct QueuedWrite {
     unsigned char addr;
@@ -65,6 +89,7 @@ class DivPlatformS3HS: public DivDispatch {
    };
     unsigned char* getRegisterPool();
     void updateWave(int ch);
+    DivChannelModeHints DivPlatformS3HS::getModeHints(int ch);
     int getRegisterPoolSize();
     void acquire(short** buf, size_t len);
     void muteChannel(int ch, bool mute);
@@ -90,5 +115,6 @@ class DivPlatformS3HS: public DivDispatch {
     bool isSampleLoaded(int index, int sample);
     void renderSamples(int chipID);
     void doWrite(unsigned int addr, unsigned char data);
+    void setFlags(const DivConfig& flags);
     ~DivPlatformS3HS();
 };

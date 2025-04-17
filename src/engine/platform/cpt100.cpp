@@ -135,9 +135,10 @@ void DivPlatformCPT100::tick(bool sysTick) {
           }
           chan[i].freq=(double)chan[i].freq*off;
         }
+        chan[i].freqChanged=false;
       } else {
-          chan[i].freqChanged=false;
-          chan[i].freq=parent->calcFreq(chan[i].baseFreq,chan[i].pitch,chan[i].fixedArp?chan[i].baseNoteOverride:chan[i].arpOff,chan[i].fixedArp,0,2,chan[i].pitch2,chipClock,CHIP_FREQBASE)/16;
+        chan[i].freqChanged=false;
+        chan[i].freq=parent->calcFreq(chan[i].baseFreq,chan[i].pitch,chan[i].fixedArp?chan[i].baseNoteOverride:chan[i].arpOff,chan[i].fixedArp,0,2,chan[i].pitch2,chipClock,CHIP_FREQBASE)/16;
       }
       if (chan[i].freq<0) chan[i].freq=0;
       if (chan[i].freq>65535) chan[i].freq=65535;
@@ -218,6 +219,7 @@ int DivPlatformCPT100::dispatch(DivCommand c) {
           chan[c.chan].freqChanged=true;
         }
       }
+      chan[c.chan].note = c.value;
       chan[c.chan].macroInit(ins);
       if (c.chan<4)
       {

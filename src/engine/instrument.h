@@ -23,8 +23,10 @@
 #include "dataErrors.h"
 #include "../ta-utils.h"
 #include "../pch.h"
+#include "../fixedQueue.h"
 
 struct DivSong;
+struct DivInstrument;
 
 // NOTICE!
 // before adding new instrument types to this struct, please ask me first.
@@ -95,7 +97,9 @@ enum DivInstrumentType: unsigned short {
   DIV_INS_GBA_MINMOD=61,
   DIV_INS_BIFURCATOR=62,
   DIV_INS_SID2=63, // coincidence!
-  DIV_INS_S3HS=64,
+  DIV_INS_SUPERVISION=64,
+  DIV_INS_UPD1771C=65,
+  DIV_INS_S3HS=66,
   DIV_INS_MAX,
   DIV_INS_NULL
 };
@@ -610,6 +614,7 @@ struct DivInstrumentFDS {
 struct DivInstrumentMultiPCM {
   unsigned char ar, d1r, dl, d2r, rr, rc;
   unsigned char lfo, vib, am;
+  bool damp, pseudoReverb, lfoReset, levelDirect;
 
   bool operator==(const DivInstrumentMultiPCM& other);
   bool operator!=(const DivInstrumentMultiPCM& other) {
@@ -618,7 +623,11 @@ struct DivInstrumentMultiPCM {
 
   DivInstrumentMultiPCM():
     ar(15), d1r(15), dl(0), d2r(0), rr(15), rc(15),
-    lfo(0), vib(0), am(0) {
+    lfo(0), vib(0), am(0),
+    damp(false),
+    pseudoReverb(false),
+    lfoReset(false),
+    levelDirect(true) {
   }
 };
 
@@ -996,8 +1005,7 @@ struct DivInstrumentSID2 {
     noiseMode(0) {}
 };
 
-struct DivInstrument {
-  String name;
+struct DivInstrumentPOD {
   DivInstrumentType type;
   DivInstrumentFM fm;
   DivInstrumentSTD std;
@@ -1017,6 +1025,77 @@ struct DivInstrument {
   DivInstrumentPowerNoise powernoise;
   DivInstrumentSID2 sid2;
   DivInstrumentS3HS s3hs;
+
+  DivInstrumentPOD() :
+    type(DIV_INS_FM) {
+  }
+};
+
+struct MemPatch {
+  MemPatch() :
+    data(NULL)
+    , offset(0)
+    , size(0) {
+  }
+
+  ~MemPatch() {
+    if (data) {
+      delete[] data;
+      data=NULL;
+    }
+  }
+
+  bool calcDiff(const void* pre, const void* post, size_t size);
+  void applyAndReverse(void* target, size_t inputSize);
+  bool isValid() const { return size>0; }
+
+  unsigned char* data;
+  size_t offset;
+  size_t size;
+};
+
+struct DivInstrumentUndoStep {
+  DivInstrumentUndoStep() :
+    name(""),
+    nameValid(false),
+    processTime(0) {
+  }
+
+  MemPatch podPatch;
+  String name;
+  bool nameValid;
+  size_t processTime;
+
+  void applyAndReverse(DivInstrument* target);
+  bool makeUndoPatch(size_t processTime_, const DivInstrument* pre, const DivInstrument* post);
+};
+
+struct DivInstrument : DivInstrumentPOD {
+  String name;
+
+  DivInstrument() :
+    name("") {
+      // clear and construct DivInstrumentPOD so it doesn't have any garbage in the padding
+      memset((unsigned char*)(DivInstrumentPOD*)this, 0, sizeof(DivInstrumentPOD));
+      new ((DivInstrumentPOD*)this) DivInstrumentPOD;
+  }
+
+  ~DivInstrument();
+
+  /**
+   * copy/assignment to specifically avoid leaking or dangling pointers to undo step
+   */
+  DivInstrument( const DivInstrument& ins );
+  DivInstrument& operator=( const DivInstrument& ins );
+
+  /**
+   * undo stuff
+   */
+  FixedQueue<DivInstrumentUndoStep*, 128> undoHist;
+  FixedQueue<DivInstrumentUndoStep*, 128> redoHist;
+  bool recordUndoStepIfChanged(size_t processTime, const DivInstrument* old);
+  int undo();
+  int redo();
 
   /**
    * these are internal functions.
@@ -1106,9 +1185,5 @@ struct DivInstrument {
    * @return whether it was successful.
    */
   bool saveDMP(const char* path);
-  DivInstrument():
-    name(""),
-    type(DIV_INS_FM) {
-  }
 };
 #endif

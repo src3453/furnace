@@ -185,6 +185,8 @@ const char* insTypes[DIV_INS_MAX+1][3]={
   {"GBA MinMod",ICON_FA_VOLUME_UP,ICON_FUR_INS_GBA_MINMOD},
   {"Bifurcator",ICON_FA_LINE_CHART,ICON_FUR_INS_BIFURCATOR},
   {"SID2",ICON_FA_KEYBOARD_O,ICON_FUR_INS_SID2},
+  {"Watara Supervision",ICON_FA_GAMEPAD,ICON_FUR_INS_SUPERVISION},
+  {"NEC μPD1771C",ICON_FA_BAR_CHART,ICON_FUR_INS_UPD1771C},
   {"3HS88PWN4",ICON_FA_SIGNAL,ICON_FA_QUESTION},
   {NULL,ICON_FA_QUESTION,ICON_FA_QUESTION}
 };
@@ -210,7 +212,7 @@ const char* sampleDepths[DIV_SAMPLE_DEPTH_MAX]={
   "8-bit µ-law PCM",
   "C219 PCM",
   "IMA ADPCM",
-  NULL,
+  "12-bit PCM",
   NULL,
   "16-bit PCM"
 };
@@ -475,6 +477,8 @@ const FurnaceGUIColors fxColors[256]={
   GUI_COLOR_PATTERN_EFFECT_INVALID,
   GUI_COLOR_PATTERN_EFFECT_INVALID,
   GUI_COLOR_PATTERN_EFFECT_INVALID,
+  GUI_COLOR_PATTERN_EFFECT_VOLUME,
+  GUI_COLOR_PATTERN_EFFECT_VOLUME,
   GUI_COLOR_PATTERN_EFFECT_INVALID,
   GUI_COLOR_PATTERN_EFFECT_INVALID,
   GUI_COLOR_PATTERN_EFFECT_INVALID,
@@ -482,9 +486,7 @@ const FurnaceGUIColors fxColors[256]={
   GUI_COLOR_PATTERN_EFFECT_INVALID,
   GUI_COLOR_PATTERN_EFFECT_INVALID,
   GUI_COLOR_PATTERN_EFFECT_INVALID,
-  GUI_COLOR_PATTERN_EFFECT_INVALID,
-  GUI_COLOR_PATTERN_EFFECT_INVALID,
-  GUI_COLOR_PATTERN_EFFECT_INVALID,
+  GUI_COLOR_PATTERN_EFFECT_VOLUME, // DC
   GUI_COLOR_PATTERN_EFFECT_INVALID,
   GUI_COLOR_PATTERN_EFFECT_INVALID,
   GUI_COLOR_PATTERN_EFFECT_MISC, // DF
@@ -689,6 +691,9 @@ const FurnaceGUIActionDef guiActions[GUI_ACTION_MAX]={
   D("PAT_LATCH", _N("Set note input latch"), 0),
   D("PAT_SCROLL_MODE", _N("Change mobile scroll mode"), 0),
   D("PAT_CLEAR_LATCH", _N("Clear note input latch"), 0),
+  D("PAT_ABSORB_INSTRUMENT", _N("Absorb instrument/octave from status at cursor"), 0),
+  D("PAT_CURSOR_UNDO", _N("Return cursor to previous jump point"), 0),
+  D("PAT_CURSOR_REDO", _N("Reverse recent cursor undo"), 0),
   D("PAT_MAX", "", NOT_AN_ACTION),
 
   D("INS_LIST_MIN", _N("---Instrument list"), NOT_AN_ACTION),
@@ -705,6 +710,7 @@ const FurnaceGUIActionDef guiActions[GUI_ACTION_MAX]={
   D("INS_LIST_UP", _N("Instrument cursor up"), SDLK_UP),
   D("INS_LIST_DOWN", _N("Instrument cursor down"), SDLK_DOWN),
   D("INS_LIST_DIR_VIEW", _N("Instruments: toggle folders/standard view"), FURKMOD_CMD|SDLK_v),
+  D("INS_LIST_SAVE_ALL", _N("Save all instruments"), 0),
   D("INS_LIST_MAX", "", NOT_AN_ACTION),
 
   D("WAVE_LIST_MIN", _N("---Wavetable list"), NOT_AN_ACTION),
@@ -722,6 +728,7 @@ const FurnaceGUIActionDef guiActions[GUI_ACTION_MAX]={
   D("WAVE_LIST_UP", _N("Wavetable cursor up"), SDLK_UP),
   D("WAVE_LIST_DOWN", _N("Wavetable cursor down"), SDLK_DOWN),
   D("WAVE_LIST_DIR_VIEW", _N("Wavetables: toggle folders/standard view"), FURKMOD_CMD|SDLK_v),
+  D("WAVE_LIST_SAVE_ALL", _N("Save all wavetables"), 0),
   D("WAVE_LIST_MAX", "", NOT_AN_ACTION),
 
   D("SAMPLE_LIST_MIN", _N("---Sample list"), NOT_AN_ACTION),
@@ -743,6 +750,7 @@ const FurnaceGUIActionDef guiActions[GUI_ACTION_MAX]={
   D("SAMPLE_LIST_STOP_PREVIEW", _N("Stop sample preview"), 0),
   D("SAMPLE_LIST_DIR_VIEW", _N("Samples: Toggle folders/standard view"), FURKMOD_CMD|SDLK_v),
   D("SAMPLE_LIST_MAKE_MAP", _N("Samples: Make me a drum kit"), 0),
+  D("SAMPLE_LIST_SAVE_ALL", _N("Save all samples"), 0),
   D("SAMPLE_LIST_MAX", "", NOT_AN_ACTION),
 
   D("SAMPLE_MIN", _N("---Sample editor"), NOT_AN_ACTION),
@@ -1015,6 +1023,8 @@ const FurnaceGUIColorDef guiColors[GUI_COLOR_MAX]={
   D(GUI_COLOR_INSTR_GBA_MINMOD,"",ImVec4(0.5f,0.45f,0.7f,1.0f)),
   D(GUI_COLOR_INSTR_BIFURCATOR,"",ImVec4(0.8925f,0.8925f,0.8925f,1.0f)),
   D(GUI_COLOR_INSTR_SID2,"",ImVec4(0.6f,0.75f,1.0f,1.0f)),
+  D(GUI_COLOR_INSTR_SUPERVISION,"",ImVec4(0.52f,1.0f,0.6f,1.0f)),
+  D(GUI_COLOR_INSTR_UPD1771C,"",ImVec4(0.94f,0.52f,0.6f,1.0f)),
   D(GUI_COLOR_INSTR_S3HS,"",ImVec4(0.4f,0.7f,1.0f,1.0f)),
   D(GUI_COLOR_INSTR_UNKNOWN,"",ImVec4(0.3f,0.3f,0.3f,1.0f)),
   
@@ -1267,6 +1277,10 @@ const int availableSystems[]={
   DIV_SYSTEM_5E01,
   DIV_SYSTEM_BIFURCATOR,
   DIV_SYSTEM_SID2,
+  DIV_SYSTEM_OPL4,
+  DIV_SYSTEM_OPL4_DRUMS,
+  DIV_SYSTEM_SUPERVISION,
+  DIV_SYSTEM_UPD1771C,
   DIV_SYSTEM_S3HS,
   0 // don't remove this last one!
 };
@@ -1303,6 +1317,8 @@ const int chipsFM[]={
   DIV_SYSTEM_OPL3_DRUMS,
   DIV_SYSTEM_OPZ,
   DIV_SYSTEM_ESFM,
+  DIV_SYSTEM_OPL4,
+  DIV_SYSTEM_OPL4_DRUMS,
   0 // don't remove this last one!
 };
 
@@ -1365,6 +1381,8 @@ const int chipsSpecial[]={
   DIV_SYSTEM_5E01,
   DIV_SYSTEM_BIFURCATOR,
   DIV_SYSTEM_SID2,
+  DIV_SYSTEM_SUPERVISION,
+  DIV_SYSTEM_UPD1771C,
   DIV_SYSTEM_S3HS,
   0 // don't remove this last one!
 };
@@ -1391,6 +1409,8 @@ const int chipsSample[]={
   DIV_SYSTEM_NDS,
   DIV_SYSTEM_GBA_DMA,
   DIV_SYSTEM_GBA_MINMOD,
+  DIV_SYSTEM_OPL4,
+  DIV_SYSTEM_OPL4_DRUMS,
   0 // don't remove this last one!
 };
 

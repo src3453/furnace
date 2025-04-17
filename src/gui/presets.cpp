@@ -320,6 +320,11 @@ void FurnaceGUI::initSystemPresets() {
       CH(DIV_SYSTEM_NDS, 1.0f, 0, "")
     }
   );
+  ENTRY(
+    "Watara Supervision", {
+      CH(DIV_SYSTEM_SUPERVISION, 1.0f, 0, "")
+    }
+  );
   CATEGORY_END;
 
   CATEGORY_BEGIN("Computers","let's get to work on chiptune today.");
@@ -517,6 +522,23 @@ void FurnaceGUI::initSystemPresets() {
           "rate=55930\n"
           "outDepth=7\n"
         ) // variable rate, Mono DAC
+      }
+    );
+    SUB_ENTRY(
+      "MSX + MoonSound", {
+        CH(DIV_SYSTEM_AY8910, 1.0f, 0, "chipType=1"),
+        CH(DIV_SYSTEM_OPL4, 1.0f, 0, "")
+      }
+    );
+    SUB_ENTRY(
+      "MSX + MoonSound (drums mode)", {
+        CH(DIV_SYSTEM_AY8910, 1.0f, 0, "chipType=1"),
+        CH(DIV_SYSTEM_OPL4_DRUMS, 1.0f, 0, "")
+      }
+    );
+  ENTRY(
+      "NEC PC-6001", {
+        CH(DIV_SYSTEM_AY8910, 1.0f, 0, "customClock=3993600")
       }
     );
   ENTRY(
@@ -1198,6 +1220,41 @@ void FurnaceGUI::initSystemPresets() {
         CH(DIV_SYSTEM_PCSPKR, 1.0f, 0, "")
       }
     );
+    SUB_ENTRY(
+      "Sega TeraDrive", {
+        CH(DIV_SYSTEM_YM2612, 1.0f, 0, ""),
+        CH(DIV_SYSTEM_SMS, 0.5f, 0, ""),
+        CH(DIV_SYSTEM_PCSPKR, 1.0f, 0, "")
+      }
+    );
+      SUB_SUB_ENTRY(
+        "Sega TeraDrive (extended channel 3)", {
+          CH(DIV_SYSTEM_YM2612_EXT, 1.0f, 0, ""),
+          CH(DIV_SYSTEM_SMS, 0.5f, 0, ""),
+          CH(DIV_SYSTEM_PCSPKR, 1.0f, 0, "")
+        }
+    );
+      SUB_SUB_ENTRY(
+        "Sega TeraDrive (CSM)", {
+          CH(DIV_SYSTEM_YM2612_CSM, 1.0f, 0, ""),
+          CH(DIV_SYSTEM_SMS, 0.5f, 0, ""),
+          CH(DIV_SYSTEM_PCSPKR, 1.0f, 0, "")
+        }
+    );
+      SUB_SUB_ENTRY(
+        "Sega TeraDrive (DualPCM)", {
+          CH(DIV_SYSTEM_YM2612_DUALPCM, 1.0f, 0, ""),
+          CH(DIV_SYSTEM_SMS, 0.5f, 0, ""),
+          CH(DIV_SYSTEM_PCSPKR, 1.0f, 0, "")
+        }
+    );
+      SUB_SUB_ENTRY(
+        "Sega TeraDrive (DualPCM, extended channel 3)", {
+          CH(DIV_SYSTEM_YM2612_DUALPCM_EXT, 1.0f, 0, ""),
+          CH(DIV_SYSTEM_SMS, 0.5f, 0, ""),
+          CH(DIV_SYSTEM_PCSPKR, 1.0f, 0, "")
+        }
+    );
   ENTRY(
     "Sharp X1", {
       CH(DIV_SYSTEM_AY8910, 1.0f, 0, "clockSel=3")
@@ -1214,6 +1271,18 @@ void FurnaceGUI::initSystemPresets() {
       CH(DIV_SYSTEM_YM2151, 1.0f, 0, "clockSel=2"),
       CH(DIV_SYSTEM_MSM6258, 1.0f, 0, "clockSel=2")
     }
+  );
+  ENTRY(
+    "FM-7", {
+      CH(DIV_SYSTEM_AY8910, 1.0f, 0, "clockSel=12"),
+      CH(DIV_SYSTEM_YM2203, 1.0f, 0, "clockSel=5")
+    }
+  );
+   SUB_ENTRY(
+     "FM-7 (extended channel 3)", {
+       CH(DIV_SYSTEM_AY8910, 1.0f, 0, "clockSel=12"),
+       CH(DIV_SYSTEM_YM2203_EXT, 1.0f, 0, "clockSel=5")
+     }
   );
   ENTRY(
     "FM Towns", {
@@ -1257,6 +1326,19 @@ void FurnaceGUI::initSystemPresets() {
         "clockSel=6\n"
         "chipType=8\n" // SN94624 447KHz
       )
+    }
+  );
+  ENTRY(
+  "Sord M5", {
+    CH(DIV_SYSTEM_SMS, 1.0f, 0,
+      "customClock=1773447\n"
+      "chipType=1\n"
+     )
+   }
+ );
+  ENTRY(
+    "Epoch Super Cassette Vision", {
+      CH(DIV_SYSTEM_UPD1771C, 1.0f, 0, "")
     }
   );
   CATEGORY_END;
@@ -1832,6 +1914,30 @@ void FurnaceGUI::initSystemPresets() {
     SUB_ENTRY(
       "Namco NA-1/2", {
         CH(DIV_SYSTEM_C219, 1.0f, 0, "")
+      }
+    );
+
+  ENTRY(
+    "Psikyo", {}
+  );
+    SUB_ENTRY(
+      "Psikyo 68EC020 hardware with OPL4", {
+        CH(DIV_SYSTEM_OPL4, 1.0f, 0, "")
+      }
+    );
+    SUB_ENTRY(
+      "Psikyo 68EC020 hardware with OPL4 (drums mode)", {
+        CH(DIV_SYSTEM_OPL4_DRUMS, 1.0f, 0, "")
+      }
+    );
+    SUB_ENTRY(
+      "Psikyo SH-2 hardware", {
+        CH(DIV_SYSTEM_OPL4, 1.0f, 0, "clockSel=1")
+      }
+    );
+    SUB_ENTRY(
+      "Psikyo SH-2 hardware (drums mode)", {
+        CH(DIV_SYSTEM_OPL4_DRUMS, 1.0f, 0, "clockSel=1")
       }
     );
 
@@ -2659,6 +2765,16 @@ void FurnaceGUI::initSystemPresets() {
       CH(DIV_SYSTEM_ESFM, 1.0f, 0, "")
     }
   );
+  ENTRY(
+    "Yamaha YMF278B (OPL4)", {
+      CH(DIV_SYSTEM_OPL4, 1.0f, 0, "")
+    }
+  );
+    SUB_ENTRY(
+      "Yamaha YMF278B (drums mode)", {
+        CH(DIV_SYSTEM_OPL4_DRUMS, 1.0f, 0, "")
+      }
+    );
   if (settings.hiddenSystems) {
     ENTRY(
       "Yamaha YMU759 (MA-2)", {
@@ -2870,6 +2986,16 @@ void FurnaceGUI::initSystemPresets() {
       CH(DIV_SYSTEM_NDS, 1.0f, 0, "")
     }
   );
+  ENTRY(
+    "Yamaha YMF278B (OPL4)", {
+      CH(DIV_SYSTEM_OPL4, 1.0f, 0, "")
+    }
+  );
+    SUB_ENTRY(
+      "Yamaha YMF278B (drums mode)", {
+        CH(DIV_SYSTEM_OPL4_DRUMS, 1.0f, 0, "")
+      }
+    );
   CATEGORY_END;
 
   CATEGORY_BEGIN("Wavetable","chips which use user-specified waveforms to generate sound.");
@@ -3079,6 +3205,22 @@ void FurnaceGUI::initSystemPresets() {
     "CPT200 (3SGUC2)", {
       CH(DIV_SYSTEM_S3HS, 1.0f, 0.0f, ""),  // 3HS88PWN4
       CH(DIV_SYSTEM_3FS44U, 1.0f, 0.0f, "") // 3FS44U
+    }
+  );
+  ENTRY(
+    "3SGUC2X", {
+      CH(DIV_SYSTEM_S3HS, 1.0f, 0.0f, ""),  // 3HS88PWN4
+      CH(DIV_SYSTEM_S3HS, 1.0f, 0.0f, "")   // 3HS88PWN4
+    }
+  );
+  ENTRY(
+    "Watara Supervision", {
+      CH(DIV_SYSTEM_SUPERVISION, 1.0f, 0, "")
+    }
+  );
+  ENTRY(
+    "NEC μPD1771C", {
+      CH(DIV_SYSTEM_UPD1771C, 1.0f, 0, "")
     }
   );
   CATEGORY_END;

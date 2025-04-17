@@ -10,7 +10,6 @@ public:
     
     #include "envelove.cpp"
     #include "ram.cpp"
-    std::random_device rd;
     std::mt19937 mt;
     long long Total_time = 0;
     double t1[4] = {0,0,0,0};
@@ -182,6 +181,7 @@ public:
 
     void initSound() {
         
+        mt.seed(0);
         envl.resize(16,_envl);
         noise.resize(65536,0);
         std::vector<double> _sintable;

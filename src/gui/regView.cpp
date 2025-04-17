@@ -38,32 +38,58 @@ void FurnaceGUI::drawRegView() {
         ImGui::Text(_("- no register pool available"));
       } else {
         ImGui::PushFont(patFont);
-        if (ImGui::BeginTable("Memory",17)) {
-          ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed);
-          
-          ImGui::TableNextRow();
-          ImGui::TableNextColumn();
-          for (int i=0; i<16; i++) {
-            ImGui::TableNextColumn();
-            ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",i);
-          }
-          for (int i=0; i<=((size-1)>>4); i++) {
+        if (depth == 16) {
+          if (ImGui::BeginTable("Memory",9)) {
+            ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed);
+            
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX],"%.2X",i*16);
-            for (int j=0; j<16; j++) {
+            for (int i=0; i<8; i++) {
               ImGui::TableNextColumn();
-              if (i*16+j>=size) continue;
-              if (depth == 8) {
-                ImGui::Text("%.2x",regPool[i*16+j]);
-              } else if (depth == 16) {
-                ImGui::Text("%.4x",regPoolW[i*16+j]);
-              } else {
-                ImGui::Text("??");
+              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",i);
+            }
+            for (int i=0; i<=((size-1)>>3); i++) {
+              ImGui::TableNextRow();
+              ImGui::TableNextColumn();
+              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX],"%.2X",i*8);
+              for (int j=0; j<8; j++) {
+                ImGui::TableNextColumn();
+                if (i*8+j>=size) continue;
+                if (depth == 16) {
+                  ImGui::Text("%.4x",regPool[i*16+j]);
+                } else {
+                  ImGui::Text("??");
+                }
               }
             }
+            ImGui::EndTable();
           }
-          ImGui::EndTable();
+        } else {
+          if (ImGui::BeginTable("Memory",17)) {
+            ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed);
+            
+            ImGui::TableNextRow();
+            ImGui::TableNextColumn();
+            for (int i=0; i<16; i++) {
+              ImGui::TableNextColumn();
+              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",i);
+            }
+            for (int i=0; i<=((size-1)>>4); i++) {
+              ImGui::TableNextRow();
+              ImGui::TableNextColumn();
+              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX],"%.2X",i*16);
+              for (int j=0; j<16; j++) {
+                ImGui::TableNextColumn();
+                if (i*16+j>=size) continue;
+                if (depth == 8) {
+                  ImGui::Text("%.2x",regPool[i*16+j]);
+                } else {
+                  ImGui::Text("??");
+                }
+              }
+            }
+            ImGui::EndTable();
+          }
         }
         ImGui::PopFont();
       }

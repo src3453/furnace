@@ -56,7 +56,7 @@ void FurnaceGUI::drawSpeed(bool asChild) {
       if (ImGui::InputFloat("##Rate",&setHz,1.0f,10.0f,"%g")) { MARK_MODIFIED
         if (tempoView) setHz/=2.5;
         if (setHz<1) setHz=1;
-        if (setHz>999) setHz=999;
+        if (setHz>99999) setHz=99999;
         e->setSongRate(setHz);
       }
       if (tempoView) {
@@ -196,7 +196,7 @@ void FurnaceGUI::drawSpeed(bool asChild) {
       unsigned char realTB=e->curSubSong->timeBase+1;
       if (ImGui::InputScalar("##TimeBase",ImGuiDataType_U8,&realTB,&_ONE,&_THREE)) { MARK_MODIFIED
         if (realTB<1) realTB=1;
-        if (realTB>16) realTB=16;
+        if (realTB>4096) realTB=4096;
         e->curSubSong->timeBase=realTB-1;
       }
       ImGui::SameLine();

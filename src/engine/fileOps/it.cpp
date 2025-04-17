@@ -181,6 +181,8 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
   unsigned short patLen[256];
 
   unsigned char defVol[256];
+  unsigned char defPan[256];
+  unsigned char defPanIns[256];
   unsigned char noteMap[256][128];
 
   bool doesPitchSlide[64];
@@ -210,6 +212,8 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
   memset(patLen,0,256*sizeof(unsigned short));
 
   memset(defVol,0,256);
+  memset(defPan,0,256);
+  memset(defPanIns,128,256);
   memset(noteMap,0,256*128);
 
   try {
@@ -436,9 +440,7 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
         reader.readC();
 
         insVol=reader.readC();
-        unsigned char defPan=reader.readC();
-
-        logV("defPan: %d",defPan);
+        defPanIns[i]=reader.readC();
 
         // vol/pan randomization
         reader.readC();
@@ -572,9 +574,7 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
       s->name=reader.readStringLatin1(26);
 
       unsigned char convert=reader.readC();
-      unsigned char defPan=reader.readC();
-
-      logV("defPan: %d",defPan);
+      defPan[i]=reader.readC();
 
       if (flags&2) {
         s->depth=DIV_SAMPLE_DEPTH_16BIT;
@@ -639,11 +639,30 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
         logD("seek not needed...");
       }
 
+      logV("reading sample data (%d)",s->samples);
+
       if (flags&8) { // compressed sample
         unsigned int ret=0;
         logV("decompression begin... (%d)",s->samples);
         if (flags&4) {
           logW("STEREO!");
+          if (s->depth==DIV_SAMPLE_DEPTH_16BIT) {
+            logV("16-bit");
+            short* outData=new short[s->samples*2];
+            ret=it_decompress16(outData,s->samples,&file[reader.tell()],len-reader.tell(),(convert&4)?1:0,(flags&4)?2:1);
+            for (unsigned int i=0; i<s->samples; i++) {
+              s->data16[i]=(outData[i<<1]+outData[1+(i<<1)])>>1;
+            }
+            delete[] outData;
+          } else {
+            logV("8-bit");
+            signed char* outData=new signed char[s->samples*2];
+            ret=it_decompress8(outData,s->samples,&file[reader.tell()],len-reader.tell(),(convert&4)?1:0,(flags&4)?2:1);
+            for (unsigned int i=0; i<s->samples; i++) {
+              s->data8[i]=(outData[i<<1]+outData[1+(i<<1)])>>1;
+            }
+            delete[] outData;
+          }
         } else {
           if (s->depth==DIV_SAMPLE_DEPTH_16BIT) {
             logV("16-bit");
@@ -655,62 +674,66 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
         }
         logV("got: %d",ret);
       } else {
-        if (s->depth==DIV_SAMPLE_DEPTH_16BIT) {
-          if (flags&4) { // downmix stereo
-            for (unsigned int i=0; i<s->samples; i++) {
-              short l;
-              if (convert&2) {
-                l=reader.readS_BE();
-              } else {
-                l=reader.readS();
+        try {
+          if (s->depth==DIV_SAMPLE_DEPTH_16BIT) {
+            if (flags&4) { // downmix stereo
+              for (unsigned int i=0; i<s->samples; i++) {
+                short l;
+                if (convert&2) {
+                  l=reader.readS_BE();
+                } else {
+                  l=reader.readS();
+                }
+                if (!(convert&1)) {
+                  l^=0x8000;
+                }
+                s->data16[i]=l;
               }
-              if (!(convert&1)) {
-                l^=0x8000;
+              for (unsigned int i=0; i<s->samples; i++) {
+                short r;
+                if (convert&2) {
+                  r=reader.readS_BE();
+                } else {
+                  r=reader.readS();
+                }
+                if (!(convert&1)) {
+                  r^=0x8000;
+                }
+                s->data16[i]=(s->data16[i]+r)>>1;
               }
-              s->data16[i]=l;
-            }
-            for (unsigned int i=0; i<s->samples; i++) {
-              short r;
-              if (convert&2) {
-                r=reader.readS_BE();
-              } else {
-                r=reader.readS();
+            } else {
+              for (unsigned int i=0; i<s->samples; i++) {
+                if (convert&2) {
+                  s->data16[i]=reader.readS_BE()^((convert&1)?0:0x8000);
+                } else {
+                  s->data16[i]=reader.readS()^((convert&1)?0:0x8000);
+                }
               }
-              if (!(convert&1)) {
-                r^=0x8000;
-              }
-              s->data16[i]=(s->data16[i]+r)>>1;
             }
           } else {
-            for (unsigned int i=0; i<s->samples; i++) {
-              if (convert&2) {
-                s->data16[i]=reader.readS_BE()^((convert&1)?0:0x8000);
-              } else {
-                s->data16[i]=reader.readS()^((convert&1)?0:0x8000);
+            if (flags&4) { // downmix stereo
+              for (unsigned int i=0; i<s->samples; i++) {
+                signed char l=reader.readC();
+                if (!(convert&1)) {
+                  l^=0x80;
+                }
+                s->data8[i]=l;
+              }
+              for (unsigned int i=0; i<s->samples; i++) {
+                signed char r=reader.readC();
+                if (!(convert&1)) {
+                  r^=0x80;
+                }
+                s->data8[i]=(s->data8[i]+r)>>1;
+              }
+            } else {
+              for (unsigned int i=0; i<s->samples; i++) {
+                s->data8[i]=reader.readC()^((convert&1)?0:0x80);
               }
             }
           }
-        } else {
-          if (flags&4) { // downmix stereo
-            for (unsigned int i=0; i<s->samples; i++) {
-              signed char l=reader.readC();
-              if (!(convert&1)) {
-                l^=0x80;
-              }
-              s->data8[i]=l;
-            }
-            for (unsigned int i=0; i<s->samples; i++) {
-              signed char r=reader.readC();
-              if (!(convert&1)) {
-                r^=0x80;
-              }
-              s->data8[i]=(s->data8[i]+r)>>1;
-            }
-          } else {
-            for (unsigned int i=0; i<s->samples; i++) {
-              s->data8[i]=reader.readC()^((convert&1)?0:0x80);
-            }
-          }
+        } catch (EndOfFileException& e) {
+          logW("premature end of file...");
         }
       }
 
@@ -929,6 +952,7 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
       bool panSliding[64];
       bool panSlidingOld[64];
       bool did[64];
+      unsigned char lastRetrig[64];
 
       if (patPtr[i]==0) continue;
 
@@ -972,6 +996,7 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
       memset(panSliding,0,64*sizeof(bool));
       memset(panSlidingOld,0,64*sizeof(bool));
       memset(did,0,64*sizeof(bool));
+      memset(lastRetrig,0,64);
 
       memset(mask,0,64);
       memset(note,0,64);
@@ -1101,7 +1126,6 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
           }
 
           readRow++;
-          memset(effectCol,4,64);
           memcpy(vibingOld,vibing,64*sizeof(bool));
           memcpy(volSlidingOld,volSliding,64*sizeof(bool));
           memcpy(portingOld,porting,64*sizeof(bool));
@@ -1138,6 +1162,7 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
             }
             break;
           }
+          memset(effectCol,4,64);
           continue;
         }
 
@@ -1199,6 +1224,29 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
         }
         if (hasIns) {
           p->data[readRow][2]=ins[chan]-1;
+          if ((note[chan]<120 || ds.insLen==0) && ins[chan]>0) {
+            unsigned char targetPan=0;
+            if (ds.insLen==0) {
+              targetPan=defPan[(ins[chan]-1)&255];
+            } else {
+              targetPan=defPan[noteMap[(ins[chan]-1)&255][note[chan]]];
+              if (!(targetPan&128)) {
+                targetPan=defPanIns[(ins[chan]-1)&255]^0x80;
+              }
+            }
+            if (targetPan&128) {
+              p->data[readRow][effectCol[chan]++]=0x80;
+              p->data[readRow][effectCol[chan]++]=CLAMP((targetPan&127)<<2,0,255);
+            }
+          }
+
+          if (hasNote && (note[chan]<120 || ds.insLen==0) && ins[chan]>0) {
+            if (ds.insLen==0) {
+              p->data[readRow][3]=defVol[(ins[chan]-1)&255];
+            } else {
+              p->data[readRow][3]=defVol[noteMap[(ins[chan]-1)&255][note[chan]]];
+            }
+          }
         }
         if (hasVol) {
           if (vol[chan]<=64) {
@@ -1210,7 +1258,23 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
             } else if (vol[chan]>=65 && vol[chan]<=74) { // fine vol up
             } else if (vol[chan]>=75 && vol[chan]<=84) { // fine vol down
             } else if (vol[chan]>=85 && vol[chan]<=94) { // vol slide up
+              if ((vol[chan]-85)!=0) {
+                volSlideStatus[chan]=(vol[chan]-85)<<4;
+                volSlideStatusChanged[chan]=true;
+              }
+              if (hasNote || hasIns) {
+                volSlideStatusChanged[chan]=true;
+              }
+              volSliding[chan]=true;
             } else if (vol[chan]>=95 && vol[chan]<=104) { // vol slide down
+              if ((vol[chan]-95)!=0) {
+                volSlideStatus[chan]=vol[chan]-95;
+                volSlideStatusChanged[chan]=true;
+              }
+              if (hasNote || hasIns) {
+                volSlideStatusChanged[chan]=true;
+              }
+              volSliding[chan]=true;
             } else if (vol[chan]>=105 && vol[chan]<=114) { // pitch down
             } else if (vol[chan]>=115 && vol[chan]<=124) { // pitch up
             } else if (vol[chan]>=193 && vol[chan]<=202) { // porta
@@ -1225,13 +1289,13 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
               portaType[chan]=3;
               porting[chan]=true;
             } else if (vol[chan]>=203 && vol[chan]<=212) { // vibrato
+              if ((vol[chan]-203)!=0) {
+                vibStatus[chan]&=0xf0;
+                vibStatus[chan]|=(vol[chan]-203);
+                vibStatusChanged[chan]=true;
+              }
+              vibing[chan]=true;
             }
-          }
-        } else if (hasNote && hasIns && (note[chan]<120 || ds.insLen==0) && ins[chan]>0) {
-          if (ds.insLen==0) {
-            p->data[readRow][3]=defVol[(ins[chan]-1)&255];
-          } else {
-            p->data[readRow][3]=defVol[noteMap[(ins[chan]-1)&255][note[chan]]];
           }
         }
         if (hasEffect) {
@@ -1285,7 +1349,7 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
                 portaStatus[chan]=effectVal[chan];
                 portaStatusChanged[chan]=true;
               }
-              if (portaType[chan]!=3) {
+              if (portaType[chan]!=3 || hasNote) {
                 portaStatusChanged[chan]=true;
               }
               portaType[chan]=3;
@@ -1340,8 +1404,11 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
               panSliding[chan]=true;
               break;
             case 'Q': // retrigger
+              if (effectVal[chan]!=0) {
+                lastRetrig[chan]=effectVal[chan];
+              }
               p->data[readRow][effectCol[chan]++]=0x0c;
-              p->data[readRow][effectCol[chan]++]=effectVal[chan]&15;
+              p->data[readRow][effectCol[chan]++]=lastRetrig[chan]&15;
               break;
             case 'R': // tremolo
               if (effectVal[chan]!=0) {
@@ -1352,6 +1419,10 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
               break;
             case 'S': // special...
               switch (effectVal[chan]>>4) {
+                case 0x8:
+                  p->data[readRow][effectCol[chan]++]=0x80;
+                  p->data[readRow][effectCol[chan]++]=(effectVal[chan]&15)<<4;
+                  break;
                 case 0xc:
                   p->data[readRow][effectCol[chan]++]=0xec;
                   p->data[readRow][effectCol[chan]++]=effectVal[chan]&15;
@@ -1363,8 +1434,10 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
               }
               break;
             case 'T': // tempo
-              p->data[readRow][effectCol[chan]++]=0xf0;
-              p->data[readRow][effectCol[chan]++]=effectVal[chan];
+              if (effectVal[chan]>=0x20) {
+                p->data[readRow][effectCol[chan]++]=0xf0;
+                p->data[readRow][effectCol[chan]++]=effectVal[chan];
+              }
               break;
             case 'U': // fine vibrato
               if (effectVal[chan]!=0) {
@@ -1454,6 +1527,7 @@ bool DivEngine::loadIT(unsigned char* file, size_t len) {
       }
     }
     ds.systemLen=(maxChan+32)>>5;
+    ds.systemName="PC";
 
     // find subsongs
     ds.findSubSongs(maxChan);    
