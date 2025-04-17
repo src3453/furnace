@@ -27,30 +27,51 @@ void DivPlatformS3HS::updateWave(int ch) {
 }
 
 void DivPlatformS3HS::acquire(short** buf, size_t len) {
-  int chanOut, chanOutL, chanOutR;
+  // オシロスコープバッファを初期化
+  for (int i=0; i<chans; i++) {
+    oscBuf[i]->begin(len);
+  }
+
+  // S3HSエミュレータからオーディオデータを取得
   std::vector<std::vector<std::vector<int16_t>>> output = cpt->AudioCallBack(len);
+  
+  // 各サンプルを処理
   for (size_t i=0; i<len; i++) {
     int outL = 0;
     int outR = 0;
+    
+    // 各チャンネルを処理
     for (unsigned char j=0; j<chans; j++) {
-        chanOut=(signed short)((output[0][j][i]+output[1][j][i])/2);
-        chanOutL=(signed short)((output[0][j][i]));
-        chanOutR=(signed short)((output[1][j][i]));
-        oscBuf[j]->data[oscBuf[j]->needle++]=(short)((double)chanOut/2);
-          //outL+=(int)((double)chanOutL/(double)(j>8&&chan[j].pcm?4:4));
-          //outR+=(int)((double)chanOutR/(double)(j>8&&chan[j].pcm?4:4));
-
-        chan[j].pos+=chan[j].freq;
-
+      // モノラル出力を計算（オシロスコープ用）
+      int chanOut = (signed short)((output[0][j][i] + output[1][j][i]) / 2);
+      int chanOutL = (signed short)(output[0][j][i]);
+      int chanOutR = (signed short)(output[1][j][i]);
+      
+      // オシロスコープバッファにサンプルを格納
+      oscBuf[j]->putSample(i, (short)((double)chanOut / 2));
+      
+      // チャンネル位置を更新
+      chan[j].pos += chan[j].freq;
     }
-    outL=(int)output[0][12][i];
-    outR=(int)output[1][12][i];
-    if (outL<-32768) outL=-32768;
-    if (outL>32767) outL=32767;
-    if (outR<-32768) outR=-32768;
-    if (outR>32767) outR=32767;
-    buf[0][i]=outL;
-    buf[1][i]=outR;
+    
+    // マスター出力（チャンネル12）を取得
+    outL = (int)output[0][12][i];
+    outR = (int)output[1][12][i];
+    
+    // 値のクランプ
+    if (outL < -32768) outL = -32768;
+    if (outL > 32767) outL = 32767;
+    if (outR < -32768) outR = -32768;
+    if (outR > 32767) outR = 32767;
+    
+    // 出力バッファに書き込み
+    buf[0][i] = outL;
+    buf[1][i] = outR;
+  }
+  
+  // オシロスコープバッファの終了処理
+  for (int i=0; i<chans; i++) {
+    oscBuf[i]->end(len);
   }
 }
 
