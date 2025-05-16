@@ -4,6 +4,7 @@
 #include <math.h>
 #include "furIcons.h"
 #include "IconsFontAwesome4.h"
+#include <chrono>
 
 #define CHIP_FREQBASE 48000
 #define rWrite(a,v) if (!skipRegisterWrites) {if(a>=0x400000 && a<0x400400) {doWrite(a,v); regPool[((a-0x400000)%0x400)]=v;} if (dumpWrites && false) {addWrite(a,v);} }
@@ -13,7 +14,7 @@ unsigned int s3hs_chanaddrs_freq[12] = {0x400000,0x400040,0x400080,0x4000c0,0x40
 unsigned int s3hs_chanaddrs_volume[12] = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x400202,0x400232,0x400262,0x400292};
 
 void DivPlatformS3HS::doWrite(unsigned int addr, unsigned char data) {
-  //printf("S3HS Write: %08x : %02x\n",addr,(int)data);
+  //printf("S3W: %lld %08x : %02x\n", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count(), addr, (int)data);
   cpt->ram_poke(cpt->ram,(int)addr,(Byte)data);
 }
 
@@ -33,22 +34,22 @@ void DivPlatformS3HS::acquire(short** buf, size_t len) {
   }
 
   // S3HSエミュレータからオーディオデータを取得
-  std::vector<std::vector<std::vector<int16_t>>> output = cpt->AudioCallBack(len);
+  std::vector<std::vector<std::vector<float_t>>> output = cpt->AudioCallBack(len);
   
   // 各サンプルを処理
   for (size_t i=0; i<len; i++) {
-    int outL = 0;
-    int outR = 0;
-    
+    float outL = 0;
+    float outR = 0;
+
     // 各チャンネルを処理
     for (unsigned char j=0; j<chans; j++) {
       // モノラル出力を計算（オシロスコープ用）
-      int chanOut = (signed short)((output[0][j][i] + output[1][j][i]) / 2);
-      int chanOutL = (signed short)(output[0][j][i]);
-      int chanOutR = (signed short)(output[1][j][i]);
-      
+      float chanOut = ((output[0][j][i] + output[1][j][i]) / 2);
+      if (chanOut < -32768.0f) chanOut = -32768.0f;
+      if (chanOut > 32767.0f) chanOut = 32767.0f;
+
       // オシロスコープバッファにサンプルを格納
-      oscBuf[j]->putSample(i, (short)((double)chanOut / 2));
+      oscBuf[j]->putSample(i, (short)((float)chanOut / 2));
       
       // チャンネル位置を更新
       chan[j].pos += chan[j].freq;
@@ -137,14 +138,14 @@ void DivPlatformS3HS::tick(bool sysTick) {
         }
       }
       if (i < 8) {
-        rWrite(0x400010 + 64*i,(unsigned char)((double)(chan[i].opvols[0]*volume)/256));
-        rWrite(0x400011 + 64*i,(unsigned char)((double)(chan[i].opvols[1]*(chan[i].modmode>3?255:volume))/256));
-        rWrite(0x400012 + 64*i,(unsigned char)((double)(chan[i].opvols[2]*(chan[i].modmode>2?255:volume))/256));
-        rWrite(0x400013 + 64*i,(unsigned char)((double)(chan[i].opvols[3]*(chan[i].modmode>2?255:volume))/256));
-        rWrite(0x400014 + 64*i,(unsigned char)((double)(chan[i].opvols[4]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
-        rWrite(0x400015 + 64*i,(unsigned char)((double)(chan[i].opvols[5]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
-        rWrite(0x400016 + 64*i,(unsigned char)((double)(chan[i].opvols[6]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
-        rWrite(0x400017 + 64*i,(unsigned char)((double)(chan[i].opvols[7]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
+        rWrite(0x400010 + 64*i,(unsigned char)((float)(chan[i].opvols[0]*volume)/256));
+        rWrite(0x400011 + 64*i,(unsigned char)((float)(chan[i].opvols[1]*(chan[i].modmode>3?255:volume))/256));
+        rWrite(0x400012 + 64*i,(unsigned char)((float)(chan[i].opvols[2]*(chan[i].modmode>2?255:volume))/256));
+        rWrite(0x400013 + 64*i,(unsigned char)((float)(chan[i].opvols[3]*(chan[i].modmode>2?255:volume))/256));
+        rWrite(0x400014 + 64*i,(unsigned char)((float)(chan[i].opvols[4]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
+        rWrite(0x400015 + 64*i,(unsigned char)((float)(chan[i].opvols[5]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
+        rWrite(0x400016 + 64*i,(unsigned char)((float)(chan[i].opvols[6]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
+        rWrite(0x400017 + 64*i,(unsigned char)((float)(chan[i].opvols[7]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
       }
     }
     if (NEW_ARP_STRAT) {
@@ -250,13 +251,13 @@ void DivPlatformS3HS::tick(bool sysTick) {
       if (chan[i].pcm && i>=8 && i<=11) {
         DivSample* sample=parent->getSample(chan[i].sample);
         if (sample!=NULL) {
-          double off=0.5;
+          float off=0.5;
           if (sample->centerRate<1) {
             off=0.5;
           } else {
-            off=(double)sample->centerRate/(8363.0*2);
+            off=(float)sample->centerRate/(8363.0*2);
           }
-          chan[i].freq=(double)chan[i].freq*off;
+          chan[i].freq=(float)chan[i].freq*off;
         }
         chan[i].freqChanged=false;
       } else {
@@ -316,14 +317,14 @@ void DivPlatformS3HS::tick(bool sysTick) {
     }
     if (chan[i].volumeChanged){
       if (i<8) {
-        rWrite(0x400010 + 64*i,(unsigned char)((double)(chan[i].opvols[0]*chan[i].outVol)/256));
-        rWrite(0x400011 + 64*i,(unsigned char)((double)(chan[i].opvols[1]*(chan[i].modmode>3?255:chan[i].outVol))/256));
-        rWrite(0x400012 + 64*i,(unsigned char)((double)(chan[i].opvols[2]*(chan[i].modmode>2?255:chan[i].outVol))/256));
-        rWrite(0x400013 + 64*i,(unsigned char)((double)(chan[i].opvols[3]*(chan[i].modmode>2?255:chan[i].outVol))/256));
-        rWrite(0x400014 + 64*i,(unsigned char)((double)(chan[i].opvols[4]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
-        rWrite(0x400015 + 64*i,(unsigned char)((double)(chan[i].opvols[5]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
-        rWrite(0x400016 + 64*i,(unsigned char)((double)(chan[i].opvols[6]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
-        rWrite(0x400017 + 64*i,(unsigned char)((double)(chan[i].opvols[7]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
+        rWrite(0x400010 + 64*i,(unsigned char)((float)(chan[i].opvols[0]*chan[i].outVol)/256));
+        rWrite(0x400011 + 64*i,(unsigned char)((float)(chan[i].opvols[1]*(chan[i].modmode>3?255:chan[i].outVol))/256));
+        rWrite(0x400012 + 64*i,(unsigned char)((float)(chan[i].opvols[2]*(chan[i].modmode>2?255:chan[i].outVol))/256));
+        rWrite(0x400013 + 64*i,(unsigned char)((float)(chan[i].opvols[3]*(chan[i].modmode>2?255:chan[i].outVol))/256));
+        rWrite(0x400014 + 64*i,(unsigned char)((float)(chan[i].opvols[4]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
+        rWrite(0x400015 + 64*i,(unsigned char)((float)(chan[i].opvols[5]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
+        rWrite(0x400016 + 64*i,(unsigned char)((float)(chan[i].opvols[6]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
+        rWrite(0x400017 + 64*i,(unsigned char)((float)(chan[i].opvols[7]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
       } else {
         rWrite(s3hs_chanaddrs_volume[i],chan[i].outVol);
       }
@@ -393,14 +394,14 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
         rWrite(0x40000d + 64*c.chan,ins->s3hs.op7fl);
         rWrite(0x40000e + 64*c.chan,ins->s3hs.op8fu);
         rWrite(0x40000f + 64*c.chan,ins->s3hs.op8fl);
-        rWrite(0x400010 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op1v*chan[c.chan].vol)/256));
-        rWrite(0x400011 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op2v*(ins->s3hs.mode>3?255:chan[c.chan].vol))/256));
-        rWrite(0x400012 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op3v*(ins->s3hs.mode>2?255:chan[c.chan].vol))/256));
-        rWrite(0x400013 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op4v*(ins->s3hs.mode>2?255:chan[c.chan].vol))/256));
-        rWrite(0x400014 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op5v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
-        rWrite(0x400015 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op6v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
-        rWrite(0x400016 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op7v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
-        rWrite(0x400017 + 64*c.chan,(unsigned char)((double)(ins->s3hs.op8v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
+        rWrite(0x400010 + 64*c.chan,(unsigned char)((float)(ins->s3hs.op1v*chan[c.chan].vol)/256));
+        rWrite(0x400011 + 64*c.chan,(unsigned char)((float)(ins->s3hs.op2v*(ins->s3hs.mode>3?255:chan[c.chan].vol))/256));
+        rWrite(0x400012 + 64*c.chan,(unsigned char)((float)(ins->s3hs.op3v*(ins->s3hs.mode>2?255:chan[c.chan].vol))/256));
+        rWrite(0x400013 + 64*c.chan,(unsigned char)((float)(ins->s3hs.op4v*(ins->s3hs.mode>2?255:chan[c.chan].vol))/256));
+        rWrite(0x400014 + 64*c.chan,(unsigned char)((float)(ins->s3hs.op5v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
+        rWrite(0x400015 + 64*c.chan,(unsigned char)((float)(ins->s3hs.op6v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
+        rWrite(0x400016 + 64*c.chan,(unsigned char)((float)(ins->s3hs.op7v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
+        rWrite(0x400017 + 64*c.chan,(unsigned char)((float)(ins->s3hs.op8v*(ins->s3hs.mode>3||ins->s3hs.mode==1?255:chan[c.chan].vol))/256));
         rWrite(0x400018 + 64*c.chan,ins->s3hs.op1w*16+ins->s3hs.op2w);
         rWrite(0x400019 + 64*c.chan,ins->s3hs.op3w*16+ins->s3hs.op4w);
         rWrite(0x40001a + 64*c.chan,ins->s3hs.op5w*16+ins->s3hs.op6w);
@@ -487,14 +488,14 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
       //chan[c.chan].vol=255;
       if (chan[c.chan].vol>255) chan[c.chan].vol=255;
       if (c.chan < 8 ) {
-        rWrite(0x400010 + 64*c.chan,(unsigned char)((double)(chan[c.chan].opvols[0]*chan[c.chan].vol)/256));
-        rWrite(0x400011 + 64*c.chan,(unsigned char)((double)(chan[c.chan].opvols[1]*(chan[c.chan].modmode>3?255:chan[c.chan].vol))/256));
-        rWrite(0x400012 + 64*c.chan,(unsigned char)((double)(chan[c.chan].opvols[2]*(chan[c.chan].modmode>2?255:chan[c.chan].vol))/256));
-        rWrite(0x400013 + 64*c.chan,(unsigned char)((double)(chan[c.chan].opvols[3]*(chan[c.chan].modmode>2?255:chan[c.chan].vol))/256));
-        rWrite(0x400014 + 64*c.chan,(unsigned char)((double)(chan[c.chan].opvols[4]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
-        rWrite(0x400015 + 64*c.chan,(unsigned char)((double)(chan[c.chan].opvols[5]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
-        rWrite(0x400016 + 64*c.chan,(unsigned char)((double)(chan[c.chan].opvols[6]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
-        rWrite(0x400017 + 64*c.chan,(unsigned char)((double)(chan[c.chan].opvols[7]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
+        rWrite(0x400010 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[0]*chan[c.chan].vol)/256));
+        rWrite(0x400011 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[1]*(chan[c.chan].modmode>3?255:chan[c.chan].vol))/256));
+        rWrite(0x400012 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[2]*(chan[c.chan].modmode>2?255:chan[c.chan].vol))/256));
+        rWrite(0x400013 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[3]*(chan[c.chan].modmode>2?255:chan[c.chan].vol))/256));
+        rWrite(0x400014 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[4]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
+        rWrite(0x400015 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[5]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
+        rWrite(0x400016 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[6]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
+        rWrite(0x400017 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[7]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
       } else {
         rWrite(0x400202 + 48*(c.chan-8),chan[c.chan].vol); 
       }
