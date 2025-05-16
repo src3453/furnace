@@ -140,11 +140,13 @@ bool DivCSPlayer::tick() {
         case 0xc1: // arp time
           arpSpeed=(unsigned char)stream.readC();
           break;
-        case 0xc2: // vibrato
-          chan[i].vibratoDepth=(signed char)stream.readC();
-          chan[i].vibratoRate=(unsigned char)stream.readC();
+        case 0xc2: { // vibrato
+          unsigned char param=stream.readC();
+          chan[i].vibratoDepth=param&15;
+          chan[i].vibratoRate=param>>4;
           sendPitch=true;
           break;
+        }
         case 0xc3: // vibrato range
           chan[i].vibratoRange=(unsigned char)stream.readC();
           break;
@@ -167,7 +169,7 @@ bool DivCSPlayer::tick() {
           chan[i].volSpeedTarget=-1;
           break;
         case 0xc9: // porta
-          chan[i].portaTarget=(signed char)stream.readC();
+          chan[i].portaTarget=(int)((unsigned char)stream.readC())-60;
           chan[i].portaSpeed=(unsigned char)stream.readC();
           break;
         case 0xca: { // legato
@@ -218,23 +220,6 @@ bool DivCSPlayer::tick() {
           break;
         case 0xd1: // nop
           break;
-        case 0xd3: { // loop
-          unsigned char loopOff=stream.readC();
-          if (chan[i].loopCount>0) {
-            stream.readC();
-            if (--chan[i].loopCount) {
-              // jump
-              chan[i].readPos-=loopOff;
-              mustTell=false;
-            }
-          } else {
-            chan[i].loopCount=stream.readC();
-            // jump
-            chan[i].readPos-=loopOff;
-            mustTell=false;
-          }
-          break;
-        }
         case 0xd6: // note off + wait 1
           e->dispatchCmd(DivCommand(DIV_CMD_NOTE_OFF,i));
           chan[i].waitTicks=1;

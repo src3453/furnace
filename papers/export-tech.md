@@ -31,6 +31,8 @@ size | description
      | - 16 values
  ??? | pointers to channel data
      | - pointers are short (2-byte) or long (4-byte), set in flags
+ 1?? | maximum stack size per channel
+     | - length: channel count
  ??? | channel data
 ```
 
@@ -73,7 +75,9 @@ hex | description
     | - bit 7: inPorta
     | - bit 6: isPortaOrSlide
  c1 | arpeggio speed (b)
- c2 | vibrato (bb) // speed, depth
+ c2 | vibrato (X)
+    | - bit 4-7: speed
+    | - bit 0-3: depth
  c3 | vibrato range (b)
  c4 | vibrato shape (b)
  c5 | pitch (c)
@@ -97,7 +101,7 @@ hex | description
  d0 | UNUSED - placeholder used during optimization passes (3-byte nonce follows)
  d1 | no operation
  d2 | UNUSED
- d3 | loop (negative offset and count follow... both are 8-bit)
+ d3 | UNUSED
  d4 | UNUSED - call symbol (32-bit index follows; only used internally)
  d5 | call sub-block (32-bit address follows)
  d6 | note off + wait one tick

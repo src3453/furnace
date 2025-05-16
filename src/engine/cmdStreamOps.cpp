@@ -19,6 +19,7 @@
 
 #include "engine.h"
 #include "../ta-log.h"
+#include <stack>
 #include <unordered_map>
 
 int DivCS::getCmdLength(unsigned char ext) {
@@ -244,9 +245,9 @@ int DivCS::getInsLength(unsigned char ins, unsigned char ext, unsigned char* spe
     case 0xcd: // panbrello
     case 0xce: // pan slide
     case 0xdd: // waitc
+    case 0xc2: // vibrato
       return 2;
     case 0xcf: // pan
-    case 0xc2: // vibrato
     case 0xc8: // vol slide
     case 0xc9: // porta
       return 3;
@@ -373,14 +374,19 @@ void writeCommandValues(SafeWriter* w, const DivCommand& c, bool bigEndian) {
     case DIV_CMD_HINT_PAN_SLIDE:
     case DIV_CMD_HINT_ARPEGGIO:
     case DIV_CMD_HINT_ARP_TIME:
+    case DIV_CMD_HINT_VIBRATO:
       w->writeC(c.value);
       break;
     case DIV_CMD_HINT_PANNING:
-    case DIV_CMD_HINT_VIBRATO:
-    case DIV_CMD_HINT_PORTA:
       w->writeC(c.value);
       w->writeC(c.value2);
       break;
+    case DIV_CMD_HINT_PORTA: {
+      unsigned char val=CLAMP(c.value+60,0,255);
+      w->writeC(val);
+      w->writeC(c.value2);
+      break;
+    }
     case DIV_CMD_PRE_PORTA:
       w->writeC((c.value?0x80:0)|(c.value2?0x40:0));
       break;
@@ -785,7 +791,7 @@ SafeWriter* stripNops(SafeWriter* s) {
   return s;
 }
 
-SafeWriter* stripNopsPacked(SafeWriter* s, unsigned char* speedDial) {
+SafeWriter* stripNopsPacked(SafeWriter* s, unsigned char* speedDial, unsigned int* chanStreamOff) {
   std::unordered_map<unsigned int,unsigned int> addrTable;
   SafeWriter* oldStream=s;
   unsigned char* buf=oldStream->getFinalBuf();
@@ -801,7 +807,7 @@ SafeWriter* stripNopsPacked(SafeWriter* s, unsigned char* speedDial) {
       break;
     }
     addrTable[i]=addr;
-    if (buf[i]!=0xd1) addr+=insLen;
+    if (buf[i]!=0xd1 && buf[i]!=0xd0) addr+=insLen;
     i+=insLen;
   }
 
@@ -813,6 +819,14 @@ SafeWriter* stripNopsPacked(SafeWriter* s, unsigned char* speedDial) {
       break;
     }
     switch (buf[i]) {
+      case 0xd0: // ext (for channel offsets)
+        if (buf[i+3]==0) {
+          int ch=buf[i+1];
+          if (ch>=0 && ch<DIV_MAX_CHANS) {
+            chanStreamOff[ch]=addrTable[i];
+          }
+        }
+        break;
       case 0xd5: // calli
       case 0xda: { // jmp
         unsigned int addr=buf[i+1]|(buf[i+2]<<8)|(buf[i+3]<<8)|(buf[i+4]<<24);
@@ -842,7 +856,7 @@ SafeWriter* stripNopsPacked(SafeWriter* s, unsigned char* speedDial) {
         break;
       }
     }
-    if (buf[i]!=0xd1) {
+    if (buf[i]!=0xd1 && buf[i]!=0xd0) {
       s->write(&buf[i],insLen);
     }
     i+=insLen;
@@ -1245,6 +1259,7 @@ SafeWriter* DivEngine::saveCommand(DivCSProgress* progress, DivCSOptions options
   SafeWriter* globalStream;
   SafeWriter* chanStream[DIV_MAX_CHANS];
   unsigned int chanStreamOff[DIV_MAX_CHANS];
+  unsigned int chanStackSize[DIV_MAX_CHANS];
   std::vector<size_t> tickPos[DIV_MAX_CHANS];
   int loopTick=-1;
 
@@ -1252,6 +1267,7 @@ SafeWriter* DivEngine::saveCommand(DivCSProgress* progress, DivCSOptions options
   memset(delayPopularity,0,256*sizeof(int));
   memset(chanStream,0,DIV_MAX_CHANS*sizeof(void*));
   memset(chanStreamOff,0,DIV_MAX_CHANS*sizeof(unsigned int));
+  memset(chanStackSize,0,DIV_MAX_CHANS*sizeof(unsigned int));
   memset(sortedCmdPopularity,0,16*sizeof(int));
   memset(sortedDelayPopularity,0,16*sizeof(int));
   memset(sortedCmd,0,16);
@@ -1283,6 +1299,10 @@ SafeWriter* DivEngine::saveCommand(DivCSProgress* progress, DivCSOptions options
     } else {
       w->writeS(0);
     }
+  }
+  // max stack sizes
+  for (int i=0; i<chans; i++) {
+    w->writeC(0);
   }
 
   // play the song ourselves
@@ -1663,34 +1683,72 @@ SafeWriter* DivEngine::saveCommand(DivCSProgress* progress, DivCSOptions options
   globalStream=packStream(globalStream,sortedCmd);
 
   // PASS 8: remove nop's which may be produced by 32-bit call conversion
-  globalStream=stripNopsPacked(globalStream,sortedCmd);
+  // also find new offsets
+  globalStream=stripNopsPacked(globalStream,sortedCmd,chanStreamOff);
 
-  // PASS 9: find new offsets
-  {
-    unsigned char* buf=globalStream->getFinalBuf();
-    for (size_t i=0; i<globalStream->size();) {
-      int insLen=getInsLength(buf[i],_EXT(buf,i,globalStream->size()),sortedCmd);
-      if (insLen<1) {
-        logE("INS %x NOT IMPLEMENTED...",buf[i]);
-        break;
-      }
-
-      if (buf[i]==0xd0) {
-        if (buf[i+3]==0) {
-          int ch=buf[i+1];
-          if (ch>=0 && ch<chans) {
-            chanStreamOff[ch]=i+w->tell();
-          }
-        }
-      }
-
-      i+=insLen;
-    }
+  for (int h=0; h<chans; h++) {
+    chanStreamOff[h]+=w->tell();
   }
 
   // write results (convert addresses to big-endian if necessary)
   reloc(globalStream->getFinalBuf(),globalStream->size(),0,w->tell(),sortedCmd,options.bigEndian);
   w->write(globalStream->getFinalBuf(),globalStream->size());
+
+  // calculate max stack sizes
+  for (int h=0; h<chans; h++) {
+    std::stack<unsigned int> callStack;
+    unsigned int maxStackSize=0;
+    unsigned char* buf=w->getFinalBuf();
+    bool done=false;
+    for (size_t i=chanStreamOff[h]; i<w->size();) {
+      int insLen=getInsLength(buf[i],_EXT(buf,i,w->size()),sortedCmd);
+      if (insLen<1) {
+        logE("%d: INS %x NOT IMPLEMENTED...",h,buf[i]);
+        break;
+      }
+      switch (buf[i]) {
+        case 0xd5: { // calli
+          unsigned int addr=buf[i+1]|(buf[i+2]<<8)|(buf[i+3]<<16)|(buf[i+4]<<24);
+          callStack.push(i+insLen);
+          if (callStack.size()>maxStackSize) maxStackSize=callStack.size();
+          i=addr;
+          insLen=0;
+          break;
+        }
+        case 0xd8: { // call
+          unsigned short addr=buf[i+1]|(buf[i+2]<<8);
+          callStack.push(i+insLen);
+          if (callStack.size()>maxStackSize) maxStackSize=callStack.size();
+          i=addr;
+          insLen=0;
+          break;
+        }
+        case 0xd9: { // ret
+          if (callStack.empty()) {
+            logE("%d: trying to ret with empty stack!",h);
+            done=true;
+            break;
+          }
+          i=callStack.top();
+          insLen=0;
+          callStack.pop();
+          break;
+        }
+        case 0xda: // jmp
+        case 0xdf: // stop
+          done=true;
+          break;
+      }
+      if (maxStackSize>255) {
+        logE("%d: stack overflow!",h);
+        break;
+      }
+      if (done) break;
+      i+=insLen;
+    }
+
+    chanStackSize[h]=maxStackSize;
+  }
 
   globalStream->finish();
   delete globalStream;
@@ -1711,6 +1769,15 @@ SafeWriter* DivEngine::saveCommand(DivCSProgress* progress, DivCSOptions options
       }
     }
   }
+
+  logD("maximum stack sizes:");
+  unsigned int cumulativeStackSize=0;
+  for (int i=0; i<chans; i++) {
+    w->writeC(chanStackSize[i]);
+    logD("- %d: %d",i,chanStackSize[i]);
+    cumulativeStackSize+=chanStackSize[i];
+  }
+  logD("(total stack size: %d)",cumulativeStackSize);
 
   logD("delay popularity:");
   w->seek(8,SEEK_SET);
