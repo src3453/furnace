@@ -310,6 +310,12 @@ const char* cmdName[]={
   "SID3_RESONANCE_SCALING",
 
   "WS_GLOBAL_SPEAKER_VOLUME",
+
+  "FM_ALG",
+  "FM_FMS",
+  "FM_AMS",
+  "FM_FMS2",
+  "FM_AMS2",
   "DIV_CMD_S3HS_OP_VOLUME", // (OP, value)
   "DIV_CMD_S3HS_OP_WAVE", // (OP, value)
   "DIV_CMD_S3HS_MODMODE", // (value)

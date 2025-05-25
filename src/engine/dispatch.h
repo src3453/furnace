@@ -315,6 +315,12 @@ enum DivDispatchCmds {
 
   DIV_CMD_WS_GLOBAL_SPEAKER_VOLUME, // (multiplier)
 
+  DIV_CMD_FM_ALG,
+  DIV_CMD_FM_FMS,
+  DIV_CMD_FM_AMS,
+  DIV_CMD_FM_FMS2,
+  DIV_CMD_FM_AMS2,
+
   DIV_CMD_S3HS_OP_VOLUME, // (OP, value)
   DIV_CMD_S3HS_OP_WAVE, // (OP, value)
   DIV_CMD_S3HS_MODMODE, // (value)
