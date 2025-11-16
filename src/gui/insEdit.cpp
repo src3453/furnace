@@ -3125,6 +3125,7 @@ void FurnaceGUI::insTabWavetable(DivInstrument* ins)
         wavePreviewHeight=63;
         break;
       case DIV_INS_SCC:
+      case DIV_INS_S3HS:
         wavePreviewLen=32;
         wavePreviewHeight=255;
         break;
@@ -3154,6 +3155,7 @@ void FurnaceGUI::insTabWavetable(DivInstrument* ins)
         wavePreviewHeight=255;
         break;
       case DIV_INS_SID3:
+      case DIV_INS_S3W2:
         wavePreviewLen=256;
         wavePreviewHeight=255;
         break;
@@ -3405,7 +3407,8 @@ void FurnaceGUI::insTabSample(DivInstrument* ins) {
         ins->type==DIV_INS_SUPERVISION ||
         ins->type==DIV_INS_SID3||
         ins->type==DIV_INS_CPT100 ||
-        ins->type==DIV_INS_S3HS) {
+        ins->type==DIV_INS_S3HS ||
+        ins->type==DIV_INS_S3W2) {
       P(ImGui::Checkbox(_("Use sample"),&ins->amiga.useSample));
       if (ins->type==DIV_INS_X1_010) {
         if (ImGui::InputInt(_("Sample bank slot##BANKSLOT"),&ins->x1_010.bankSlot,1,4)) { PARAMETER
@@ -8698,7 +8701,8 @@ void FurnaceGUI::drawInsEdit() {
             ins->type==DIV_INS_SM8521 ||
             (ins->type==DIV_INS_GBA_MINMOD && ins->amiga.useWave) ||
             (ins->type==DIV_INS_CPT100 && !ins->amiga.useSample) ||
-            (ins->type==DIV_INS_S3HS && !ins->amiga.useSample)) 
+            (ins->type==DIV_INS_S3HS && !ins->amiga.useSample) || 
+            (ins->type==DIV_INS_S3W2 && !ins->amiga.useSample)) 
         {
           insTabWavetable(ins);
         }
@@ -9326,6 +9330,20 @@ void FurnaceGUI::drawInsEdit() {
               macroList.push_back(FurnaceGUIMacroDesc(_("Filter Cutoff"),&ins->std.ex2Macro,0,255,160,uiColors[GUI_COLOR_MACRO_FILTER]));
               macroList.push_back(FurnaceGUIMacroDesc(_("Filter Resonance"),&ins->std.ex3Macro,0,255,160,uiColors[GUI_COLOR_MACRO_FILTER]));
               break;
+              case DIV_INS_S3W2:
+              macroList.push_back(FurnaceGUIMacroDesc(_("Volume"),&ins->std.volMacro,0,255,160,uiColors[GUI_COLOR_MACRO_VOLUME]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Arpeggio"),&ins->std.arpMacro,-120,120,160,uiColors[GUI_COLOR_MACRO_PITCH],true,NULL,macroHoverNote,false,NULL,true,ins->std.arpMacro.val));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Wave/Noise"),&ins->std.dutyMacro,0,1,160,uiColors[GUI_COLOR_MACRO_OTHER]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Waveform"),&ins->std.waveMacro,0,waveCount,160,uiColors[GUI_COLOR_MACRO_WAVE]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Pitch"),&ins->std.pitchMacro,-2048,2047,160,uiColors[GUI_COLOR_MACRO_PITCH],true,macroRelativeMode));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Panning (left)"),&ins->std.panLMacro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER],false,NULL));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Panning (right)"),&ins->std.panRMacro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Phase Reset"),&ins->std.phaseResetMacro,0,1,32,uiColors[GUI_COLOR_MACRO_OTHER],false,NULL,NULL,true));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Modulation Mode"),&ins->std.ex1Macro,0,3,90,uiColors[GUI_COLOR_MACRO_FILTER]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Modulator Channel"),&ins->std.ex2Macro,0,7,90,uiColors[GUI_COLOR_MACRO_FILTER]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Modulation Parameter 1"),&ins->std.ex3Macro,0,65535,160,uiColors[GUI_COLOR_MACRO_FILTER]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Modulation Parameter 2"),&ins->std.ex4Macro,0,65535,160,uiColors[GUI_COLOR_MACRO_FILTER]));
+              break;
               case DIV_INS_UPD1771C:
               macroList.push_back(FurnaceGUIMacroDesc(_("Volume"),&ins->std.volMacro,0,31,160,uiColors[GUI_COLOR_MACRO_VOLUME]));
               macroList.push_back(FurnaceGUIMacroDesc(_("Arpeggio"),&ins->std.arpMacro,-120,120,160,uiColors[GUI_COLOR_MACRO_PITCH],true,NULL,macroHoverNote,false,NULL,true,ins->std.arpMacro.val));
@@ -9449,7 +9467,8 @@ void FurnaceGUI::drawInsEdit() {
             ins->type==DIV_INS_SWAN ||
             ins->type==DIV_INS_VRC6 ||
             ins->type==DIV_INS_CPT100 ||
-            ins->type==DIV_INS_S3HS) {
+            ins->type==DIV_INS_S3HS ||
+            ins->type==DIV_INS_S3W2) {
           insTabSample(ins);
         }
         if (ins->type>=DIV_INS_MAX) {

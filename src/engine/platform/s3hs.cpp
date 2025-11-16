@@ -121,6 +121,7 @@ void DivPlatformS3HS::tick(bool sysTick) {
     chan[i].std.next();
     
     if (chan[i].std.vol.had) {
+      chan[i].vol = chan[i].actualVol;
       int volume = chan[i].std.vol.val*chan[i].vol/256;
       if(i>=8 && i<=11) {
         chan[i].outVol=(MIN(255,volume)*(chan[i].vol))/(256);
@@ -247,7 +248,7 @@ void DivPlatformS3HS::tick(bool sysTick) {
     }
     if (chan[i].freqChanged || chan[i].keyOn || chan[i].keyOff) {
       //DivInstrument* ins=parent->getIns(chan[i].ins,DIV_INS_SU);
-      chan[i].freq=parent->calcFreq(chan[i].baseFreq,chan[i].pitch,chan[i].fixedArp?chan[i].baseNoteOverride:chan[i].arpOff,chan[i].fixedArp,0,2,chan[i].pitch2,chipClock,CHIP_FREQBASE)/16;
+      chan[i].freq=parent->calcFreq(chan[i].baseFreq,chan[i].pitch,chan[i].fixedArp?chan[i].baseNoteOverride:chan[i].arpOff,chan[i].fixedArp,0,2,chan[i].pitch2,chipClock,CHIP_FREQBASE)/32;
       if (chan[i].pcm && i>=8 && i<=11) {
         DivSample* sample=parent->getSample(chan[i].sample);
         if (sample!=NULL) {
@@ -255,7 +256,7 @@ void DivPlatformS3HS::tick(bool sysTick) {
           if (sample->centerRate<1) {
             off=0.5;
           } else {
-            off=(float)sample->centerRate/(8363.0*2);
+            off=(float)sample->centerRate/(8363.0*1.0);
           }
           chan[i].freq=(float)chan[i].freq*off;
         }
@@ -358,6 +359,7 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
   switch (c.cmd) {
     case DIV_CMD_NOTE_ON:
       {
+      chan[c.chan].vol = chan[c.chan].actualVol;
       DivInstrument* ins = parent->getIns(chan[c.chan].ins,DIV_INS_S3HS);
       if (chan[c.chan].pcm && !(ins->type==DIV_INS_AMIGA || ins->amiga.useSample)) {
         chan[c.chan].pcm=(ins->type==DIV_INS_AMIGA || ins->amiga.useSample);
@@ -478,12 +480,17 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
     case DIV_CMD_NOTE_OFF:
       chan[c.chan].active=false;
       chan[c.chan].keyOff=true;
+      chan[c.chan].keyOn=false;
+      //chan[c.chan].vol=0;
+      //chan[c.chan].resVol=0;
+      //chan[c.chan].outVol=0;
       if (c.chan<8)
       {
         rWrite(0x40001e + 64*c.chan,0);
       }  
       break;
     case DIV_CMD_VOLUME:
+      chan[c.chan].actualVol=c.value;
       chan[c.chan].vol=c.value;
       //chan[c.chan].vol=255;
       if (chan[c.chan].vol>255) chan[c.chan].vol=255;
@@ -737,6 +744,8 @@ void DivPlatformS3HS::reset() {
   for (int i=0; i<chans; i++) {
     chan[i]=DivPlatformS3HS::Channel();
     chan[i].vol=0xff;
+    chan[i].actualVol=0xff;
+    chan[i].outVol=0xff;
     chan[i].pan=0xff;
     chan[i].std.setEngine(parent);
     chan[i].ws.setEngine(parent);

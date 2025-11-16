@@ -3662,17 +3662,17 @@ void FurnaceGUI::initSystemPresets() {
       }
   );
   ENTRY(
-    "CPT100 (3SGUC1)", {
+    "CPT100 (3SGUC1, S3F1)", {
       CH(DIV_SYSTEM_CPT100, 1.0f, 0, "")
     }
   );
   ENTRY(
-    "3FS44U", {
+    "3FS44U (S3F1u)", {
       CH(DIV_SYSTEM_3FS44U, 1.0f, 0, "")
     }
   );
   ENTRY(
-    "3HS88PWN4", {
+    "3HS88PWN4 (S3HS)", {
       CH(DIV_SYSTEM_S3HS, 1.0f, 0, "")
     }
   );
@@ -3683,9 +3683,20 @@ void FurnaceGUI::initSystemPresets() {
     }
   );
   ENTRY(
-    "3SGUC2X", {
+    "3SGUC2X (S3SU)", {
       CH(DIV_SYSTEM_S3HS, 1.0f, 0.0f, ""),  // 3HS88PWN4
       CH(DIV_SYSTEM_S3HS, 1.0f, 0.0f, "")   // 3HS88PWN4
+    }
+  );
+  ENTRY(
+    "3WS8PN (S3W2)", {
+      CH(DIV_SYSTEM_S3W2, 1.0f, 0, "")
+    }
+  );
+  ENTRY(
+    "CPT2xx + Sound Expansion Unit", {
+      CH(DIV_SYSTEM_S3HS, 1.0f, 0.0f, ""),  // 3HS88PWN4
+      CH(DIV_SYSTEM_S3W2, 1.0f, 0, "")      // 3WS8PN
     }
   );
   ENTRY(

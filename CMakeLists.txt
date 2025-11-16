@@ -689,6 +689,8 @@ src/engine/platform/sound/sid2/wave.cc
 
 src/engine/platform/sound/sid3.c
 
+src/engine/platform/sound/3ws8pn/sound.cpp
+
 src/engine/platform/oplAInterface.cpp
 src/engine/platform/ym2608Interface.cpp
 src/engine/platform/ym2610Interface.cpp
@@ -821,6 +823,7 @@ src/engine/platform/dummy.cpp
 src/engine/platform/cpt100.cpp
 src/engine/platform/s3hs.cpp
 src/engine/platform/3fs44u.cpp
+src/engine/platform/s3w2.cpp
 
 
 src/engine/export/abstract.cpp

@@ -24,27 +24,44 @@ void DivPlatformCPT100::updateWave(int ch) {
 }
 
 void DivPlatformCPT100::acquire(short** buf, size_t len) {
-  int chanOut;
+  // オシロスコープバッファを初期化
+  for (int i = 0; i < chans; i++) {
+    if (oscBuf[i]) oscBuf[i]->begin(len);
+  }
+
+  // オーディオデータを取得（モノラルチャンネルごとの配列を想定）
   std::vector<std::vector<int16_t>> output = cpt->AudioCallBack(len);
-  for (size_t i=0; i<len; i++) {
-    int out=0;
-    for (unsigned char j=0; j<chans; j++) {
-      if (true) {
-        if (!isMuted[j]) {
-          chanOut=(signed short)(output[j][i]);
-          oscBuf[j]->data[oscBuf[j]->needle++]=(short)((double)chanOut/2);
-          out+=(int)((double)chanOut/(double)(j>4&&chan[j].pcm?1.5:5));
-        } else {
-          oscBuf[j]->data[oscBuf[j]->needle++]=0;
-        }
-        chan[j].pos+=chan[j].freq;
-      } else {
-        oscBuf[j]->data[oscBuf[j]->needle++]=0;
-      }
+
+  // 各サンプルを処理
+  for (size_t i = 0; i < len; i++) {
+    float out = 0.0f;
+
+    // 各チャンネルを処理
+    for (unsigned char j = 0; j < (unsigned)chans; j++) {
+      int16_t sample = 0;
+      if (j < output.size() && i < output[j].size()) sample = output[j][i];
+
+      // マスター出力（左右同じ信号を足し合わせる）
+      out += (float)sample / 4.0f;
+
+      // モノラル出力を計算（オシロスコープ用）
+      float chanOut = (float)sample;
+      if (chanOut < -32768.0f) chanOut = -32768.0f;
+      if (chanOut > 32767.0f) chanOut = 32767.0f;
+
+      if (oscBuf[j]) oscBuf[j]->putSample(i, (short)(chanOut / 2.0f));
     }
-    if (out<-32768) out=-32768;
-    if (out>32767) out=32767;
-    buf[0][i]=out;
+
+    // 値のクランプ
+    if (out < -32768.0f) out = -32768.0f;
+    if (out > 32767.0f) out = 32767.0f;
+
+    // 出力バッファに書き込み（ステレオ）
+    buf[0][i] = (short)out;
+  }
+    // オシロスコープバッファの終了処理
+  for (int i=0; i<chans; i++) {
+    oscBuf[i]->end(len);
   }
 }
 
@@ -178,7 +195,7 @@ void DivPlatformCPT100::tick(bool sysTick) {
     if (chan[i].pcm && i>=4 && i<=5) {
       rWrite(0x1008a+i-4,4);
     }
-    rWrite(chanaddrs_volume[i],chan[i].outVol);
+    rWrite(chanaddrs_volume[i],isMuted[i]?0:chan[i].outVol);
   }
 }
 

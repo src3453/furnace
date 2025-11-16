@@ -12,6 +12,7 @@ class DivPlatformS3HS: public DivDispatch {
     bool waveChanged, waveUpdated;
     bool pcm;
     unsigned char vol;
+    unsigned char actualVol;
     unsigned char outVol, resVol;
     signed char amp;
     bool pcmLoop;

@@ -189,6 +189,7 @@ const char* insTypes[DIV_INS_MAX+1][3]={
   {"NEC μPD1771C",ICON_FA_BAR_CHART,ICON_FUR_INS_UPD1771C},
   {"SID3",ICON_FA_KEYBOARD_O,ICON_FUR_INS_SID3},
   {"3HS88PWN4",ICON_FA_SIGNAL,ICON_FA_QUESTION},
+  {"3WS8PN",ICON_FA_BAR_CHART,ICON_FA_QUESTION},
   {NULL,ICON_FA_QUESTION,ICON_FA_QUESTION}
 };
 
@@ -1067,6 +1068,7 @@ const FurnaceGUIColorDef guiColors[GUI_COLOR_MAX]={
   D(GUI_COLOR_INSTR_UPD1771C,"",ImVec4(0.94f,0.52f,0.6f,1.0f)),
   D(GUI_COLOR_INSTR_SID3,"",ImVec4(0.6f,0.75f,0.6f,1.0f)),
   D(GUI_COLOR_INSTR_S3HS,"",ImVec4(0.4f,0.7f,1.0f,1.0f)),
+  D(GUI_COLOR_INSTR_S3W2,"",ImVec4(0.4f,1.0f,0.4f,1.0f)),
   D(GUI_COLOR_INSTR_UNKNOWN,"",ImVec4(0.3f,0.3f,0.3f,1.0f)),
   
 
@@ -1329,6 +1331,7 @@ const int availableSystems[]={
   DIV_SYSTEM_UPD1771C,
   DIV_SYSTEM_SID3,
   DIV_SYSTEM_S3HS,
+  DIV_SYSTEM_S3W2,
   0 // don't remove this last one!
 };
 
@@ -1437,6 +1440,7 @@ const int chipsSpecial[]={
   DIV_SYSTEM_UPD1771C,
   DIV_SYSTEM_SID3,
   DIV_SYSTEM_S3HS,
+  DIV_SYSTEM_S3W2,
   0 // don't remove this last one!
 };
 
