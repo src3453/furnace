@@ -456,7 +456,7 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
         cpt->wtSync(c.chan-8);
       }
       if (chan[c.chan].insChanged) {
-        if (!parent->song.brokenOutVol && !chan[c.chan].std.vol.will) {
+        if (!parent->song.compatFlags.brokenOutVol && !chan[c.chan].std.vol.will) {
           chan[c.chan].outVol=chan[c.chan].vol;
         }
         if (chan[c.chan].wave<0) {

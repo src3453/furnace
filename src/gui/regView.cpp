@@ -38,69 +38,63 @@ void FurnaceGUI::drawRegView() {
         ImGui::Text(_("- no register pool available"));
       } else {
         ImGui::PushFont(patFont);
-        if (ImGui::BeginTable("Memory",17)) {
-          float widthOne=ImGui::CalcTextSize("0").x;
-          if (size>0xfff) { // no im got gonna put some clamped log formula instead
-            ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed, widthOne*4.0f);
-          } else if (size>0xff) {
-            ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed, widthOne*3.0f);
-          } else {
-            ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed, widthOne*2.0f);
-          }
-          
-          ImGui::TableNextRow();
-          ImGui::TableNextColumn();
-          for (int i=0; i<16; i++) {
-            ImGui::TableNextColumn();
-            ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",i);
-          }
-          for (int i=0; i<=((size-1)>>4); i++) {
+        if (depth==16) {
+          if (ImGui::BeginTable("Memory",9)) {
+            float widthOne=ImGui::CalcTextSize("0").x;
+            if (size>0xfff) {
+              ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed,widthOne*4.0f);
+            } else if (size>0xff) {
+              ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed,widthOne*3.0f);
+            } else {
+              ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed,widthOne*2.0f);
+            }
+
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            for (int i=0; i<8; i++) {
+            for (int j=0; j<8; j++) {
               ImGui::TableNextColumn();
-              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",i);
+              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",j);
             }
-            for (int i=0; i<=((size-1)>>3); i++) {
+
+            int rows=(size+7)>>3;
+            for (int row=0; row<rows; row++) {
               ImGui::TableNextRow();
               ImGui::TableNextColumn();
-              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX],"%.2X",i*8);
-              for (int j=0; j<8; j++) {
+              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX],"%.2X",row*8);
+              for (int col=0; col<8; col++) {
+                int idx=row*8+col;
                 ImGui::TableNextColumn();
-                if (i*8+j>=size) continue;
-                if (depth == 16) {
-                  ImGui::Text("%.4x",regPool[i*16+j]);
-                } else {
-                  ImGui::Text("??");
-                }
+                if (idx>=size) continue;
+                ImGui::Text("%.4x",regPoolW[idx]);
               }
             }
+
             ImGui::EndTable();
           }
         } else {
           if (ImGui::BeginTable("Memory",17)) {
             ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed);
-            
+
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            for (int i=0; i<16; i++) {
+            for (int j=0; j<16; j++) {
               ImGui::TableNextColumn();
-              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",i);
+              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",j);
             }
-            for (int i=0; i<=((size-1)>>4); i++) {
+
+            int rows=(size+15)>>4;
+            for (int row=0; row<rows; row++) {
               ImGui::TableNextRow();
               ImGui::TableNextColumn();
-              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX],"%.2X",i*16);
-              for (int j=0; j<16; j++) {
+              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX],"%.2X",row*16);
+              for (int col=0; col<16; col++) {
+                int idx=row*16+col;
                 ImGui::TableNextColumn();
-                if (i*16+j>=size) continue;
-                if (depth == 8) {
-                  ImGui::Text("%.2x",regPool[i*16+j]);
-                } else {
-                  ImGui::Text("??");
-                }
+                if (idx>=size) continue;
+                ImGui::Text("%.2x",regPool[idx]);
               }
             }
+
             ImGui::EndTable();
           }
         }

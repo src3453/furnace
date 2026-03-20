@@ -100,19 +100,7 @@ int writeLog(int level, const char* msg, fmt::printf_args args) {
   int pos=(logPosition.fetch_add(1))&TA_LOG_MASK;
 
 #if FMT_VERSION >= 100100
-#ifdef _MSVC_LANG
-#if _MSVC_LANG >= 201703L
-  logEntries[pos].text.assign(fmt::vsprintf(std::basic_string_view(msg),args));
-#else
-  logEntries[pos].text.assign(fmt::vsprintf(fmt::basic_string_view<char>(msg),args));
-#endif
-#else
-#if __cplusplus >= 201703L
-  logEntries[pos].text.assign(fmt::vsprintf(std::basic_string_view(msg),args));
-#else
-  logEntries[pos].text.assign(fmt::vsprintf(fmt::basic_string_view<char>(msg),args));
-#endif
-#endif
+  logEntries[pos].text.assign(fmt::vsprintf(fmt::string_view(msg),args));
 #else
   logEntries[pos].text.assign(fmt::vsprintf(msg,args));
 #endif

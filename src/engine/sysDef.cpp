@@ -2737,25 +2737,33 @@ void DivEngine::registerSystems() {
   );
   
   sysDefs[DIV_SYSTEM_S3W2]=new DivSysDef(
-    "3WS8PN (S3W2)", NULL, 0xfa, 0, 8, false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 256, 256,
-    "src3453's (yet) another fantasy sound chip. It is an amalgamation of FDS, X1-010 and AY, which has some spirits of 3HS88PWN4 and CPT100.",
-    {"Channel 1", "Channel 2", "Channel 3", "Channel 4", "Channel 5", "Channel 6", "Channel 7", "Channel 8"},
-    {"CH1", "CH2", "CH3", "CH4", "CH5", "CH6", "CH7", "CH8"},
-    {DIV_CH_WAVE, DIV_CH_WAVE, DIV_CH_WAVE, DIV_CH_WAVE, DIV_CH_WAVE, DIV_CH_WAVE, DIV_CH_WAVE, DIV_CH_WAVE},
-    {DIV_INS_S3W2, DIV_INS_S3W2, DIV_INS_S3W2, DIV_INS_S3W2, DIV_INS_S3W2, DIV_INS_S3W2, DIV_INS_S3W2, DIV_INS_S3W2},
-    {DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA},
+    _("3WS8PN (S3W2)"), NULL, 0xfa, 0, 8, 8, 8,
+    false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 256, 256,
+    _("src3453's (yet) another fantasy sound chip. It is an amalgamation of FDS, X1-010 and AY, which has some spirits of 3HS88PWN4 and CPT100."),
+    DivChanDefFunc({
+      DivChanDef(_("Channel 1"), "CH1", DIV_CH_WAVE, DIV_INS_S3W2, DIV_INS_AMIGA),
+      DivChanDef(_("Channel 2"), "CH2", DIV_CH_WAVE, DIV_INS_S3W2, DIV_INS_AMIGA),
+      DivChanDef(_("Channel 3"), "CH3", DIV_CH_WAVE, DIV_INS_S3W2, DIV_INS_AMIGA),
+      DivChanDef(_("Channel 4"), "CH4", DIV_CH_WAVE, DIV_INS_S3W2, DIV_INS_AMIGA),
+      DivChanDef(_("Channel 5"), "CH5", DIV_CH_WAVE, DIV_INS_S3W2, DIV_INS_AMIGA),
+      DivChanDef(_("Channel 6"), "CH6", DIV_CH_WAVE, DIV_INS_S3W2, DIV_INS_AMIGA),
+      DivChanDef(_("Channel 7"), "CH7", DIV_CH_WAVE, DIV_INS_S3W2, DIV_INS_AMIGA),
+      DivChanDef(_("Channel 8"), "CH8", DIV_CH_WAVE, DIV_INS_S3W2, DIV_INS_AMIGA)
+    }),
+    {},
     waveOnlyEffectHandlerMap
   );
 
   sysDefs[DIV_SYSTEM_3FS44U]=new DivSysDef(
-    "3FS44U (S3F1u)", NULL, 0xfb, 0, 4, false, true, 0, false, 0, 0, 0,
-    "Basically CPT100, but lack of wavetable channels.",
-    {"FM 1", "FM 2", "FM 3", "FM 4"},
-    {"FM1", "FM2", "FM3", "FM4"},
-    {DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM},
-    {DIV_INS_CPT100, DIV_INS_CPT100, DIV_INS_CPT100, DIV_INS_CPT100},
-    {DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL},
-    {}
+    _("3FS44U (S3F1u)"), NULL, 0xfb, 0, 4, 4, 4,
+    false, true, 0, false, 0, 0, 0,
+    _("Basically CPT100, but lack of wavetable channels."),
+    DivChanDefFunc({
+      DivChanDef(_("FM 1"), "FM1", DIV_CH_FM, DIV_INS_CPT100),
+      DivChanDef(_("FM 2"), "FM2", DIV_CH_FM, DIV_INS_CPT100),
+      DivChanDef(_("FM 3"), "FM3", DIV_CH_FM, DIV_INS_CPT100),
+      DivChanDef(_("FM 4"), "FM4", DIV_CH_FM, DIV_INS_CPT100)
+    })
   );
   //const EffectHandler suCutoffHandler(DIV_CMD_C64_FINE_CUTOFF, _("4xxx: Set cutoff (0 to FFF)"), effectValLong<12>);
   EffectHandlerMap s3hsEffectHandlerMap = {
@@ -2797,13 +2805,24 @@ void DivEngine::registerSystems() {
   };
 
   sysDefs[DIV_SYSTEM_S3HS]=new DivSysDef(
-    "3HS88PWN4 (S3HS)", NULL, 0xfc, 0, 12, false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 32, 256,
-    "src3453's another fantasy sound chip. It supports harmonic synthesize.",
-    {"HS 1", "HS 2", "HS 3", "HS 4", "HS 5", "HS 6", "HS 7", "HS 8", "PCM 1", "PCM 2", "PCM 3", "PCM 4"},
-    {"H1", "H2", "H3", "H4", "H5", "H6", "H7", "H8", "P1", "P2", "P3", "P4"},
-    {DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM, DIV_CH_PCM},
-    {DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS, DIV_INS_S3HS},
-    {DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA, DIV_INS_AMIGA},
+    _("3HS88PWN4 (S3HS)"), NULL, 0xfc, 0, 12, 12, 12,
+    false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 32, 256,
+    _("src3453's another fantasy sound chip. It supports harmonic synthesize."),
+    DivChanDefFunc({
+      DivChanDef(_("HS 1"), "H1", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 2"), "H2", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 3"), "H3", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 4"), "H4", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 5"), "H5", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 6"), "H6", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 7"), "H7", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 8"), "H8", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("PCM 1"), "P1", DIV_CH_PCM, DIV_INS_S3HS, DIV_INS_AMIGA),
+      DivChanDef(_("PCM 2"), "P2", DIV_CH_PCM, DIV_INS_S3HS, DIV_INS_AMIGA),
+      DivChanDef(_("PCM 3"), "P3", DIV_CH_PCM, DIV_INS_S3HS, DIV_INS_AMIGA),
+      DivChanDef(_("PCM 4"), "P4", DIV_CH_PCM, DIV_INS_S3HS, DIV_INS_AMIGA)
+    }),
+    {},
     s3hsEffectHandlerMap
   );
 
@@ -2815,13 +2834,18 @@ void DivEngine::registerSystems() {
   );
 
   sysDefs[DIV_SYSTEM_CPT100]=new DivSysDef(
-    "CPT100 (S3F1)", NULL, 0xfe, 0, 6, false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 32, 256,
-    "src3453's first fantasy console. It features four FM channels and two wavetable channels.",
-    {"FM 1", "FM 2", "FM 3", "FM 4", "Channel 5", "Channel 6"},
-    {"FM1", "FM2", "FM3", "FM4", "CH5", "CH6"},
-    {DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_FM, DIV_CH_WAVE, DIV_CH_WAVE},
-    {DIV_INS_CPT100, DIV_INS_CPT100, DIV_INS_CPT100, DIV_INS_CPT100, DIV_INS_CPT100, DIV_INS_CPT100},
-    {DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_NULL, DIV_INS_AMIGA, DIV_INS_AMIGA},
+    _("CPT100 (S3F1)"), NULL, 0xfe, 0, 6, 6, 6,
+    false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 32, 256,
+    _("src3453's first fantasy console. It features four FM channels and two wavetable channels."),
+    DivChanDefFunc({
+      DivChanDef(_("FM 1"), "FM1", DIV_CH_FM, DIV_INS_CPT100),
+      DivChanDef(_("FM 2"), "FM2", DIV_CH_FM, DIV_INS_CPT100),
+      DivChanDef(_("FM 3"), "FM3", DIV_CH_FM, DIV_INS_CPT100),
+      DivChanDef(_("FM 4"), "FM4", DIV_CH_FM, DIV_INS_CPT100),
+      DivChanDef(_("Channel 5"), "CH5", DIV_CH_WAVE, DIV_INS_CPT100, DIV_INS_AMIGA),
+      DivChanDef(_("Channel 6"), "CH6", DIV_CH_WAVE, DIV_INS_CPT100, DIV_INS_AMIGA)
+    }),
+    {},
     waveOnlyEffectHandlerMap
   );
 

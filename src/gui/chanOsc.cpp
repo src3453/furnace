@@ -414,7 +414,22 @@ void FurnaceGUI::drawChanOsc() {
     } else {
       ImGui::PushStyleVar(ImGuiStyleVar_CellPadding,ImVec2(0.0f,0.0f));
       float availY=ImGui::GetContentRegionAvail().y;
-      if (ImGui::BeginTable("ChanOsc",chanOscCols,ImGuiTableFlags_Borders|ImGuiTableFlags_NoClip)) {
+      int drawCols=chanOscCols;
+      if (chanOscAutoCols) {
+        int visibleCount=0;
+        int chans=e->getTotalChannelCount();
+        for (int i=0; i<chans; i++) {
+          DivDispatchOscBuffer* buf=e->getOscBuffer(i);
+          if (buf!=NULL && e->curSubSong->chanShowChanOsc[i]) {
+            visibleCount++;
+          }
+        }
+        drawCols=sqrt(visibleCount);
+        if (drawCols>64) drawCols=64;
+        if (drawCols<1) drawCols=1;
+        chanOscCols=drawCols;
+      }
+      if (ImGui::BeginTable("ChanOsc",drawCols,ImGuiTableFlags_Borders|ImGuiTableFlags_NoClip)) {
         struct OscData {
           DivDispatchOscBuffer* buf;
           ChanOscStatus* fft;
@@ -606,16 +621,11 @@ void FurnaceGUI::drawChanOsc() {
         }
         chanOscWorkPool->wait();
         
-        if (chanOscAutoCols) {
-          chanOscCols=sqrt(oscData.size());
-          if (chanOscCols>64) chanOscCols=64;
-          if (chanOscCols<1) chanOscCols=1;
-        }
-        int rows=(oscData.size()+(chanOscCols-1))/chanOscCols;
+        int rows=(oscData.size()+(drawCols-1))/drawCols;
 
         // render
         for (size_t i=0; i<oscData.size(); i++) {
-          if (i%chanOscCols==0) ImGui::TableNextRow();
+          if (i%drawCols==0) ImGui::TableNextRow();
           ImGui::TableNextColumn();
 
           DivDispatchOscBuffer* buf=oscData[i].buf;
@@ -624,6 +634,7 @@ void FurnaceGUI::drawChanOsc() {
           if (buf==NULL) {
             ImGui::Text(_("Error!"));
           } else {
+            ImGui::PushID(ch);
             ImVec2 size=ImGui::GetContentRegionAvail();
             size.y=availY/rows;
 
@@ -964,6 +975,7 @@ void FurnaceGUI::drawChanOsc() {
 
               ImGui::PopClipRect();
             }
+            ImGui::PopID();
           }
         }
         ImGui::EndTable();
