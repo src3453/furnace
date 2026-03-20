@@ -1,9 +1,14 @@
-#include <vector>
+// #include <vector>
 #include "header/spec.hpp"
 #include "header/types.hpp"
+// #include <chrono>
+// #include <ctime>
+
+#define Byte unsigned char
 
 std::vector<Byte> ram;
 std::vector<Byte> vram;
+//std::chrono::system_clock::time_point start = std::chrono::system_clock::now();
 
 // RAMおよびVRAMを管理する関数
 void ram_boot(std::vector<Byte>& ram, std::vector<Byte>& vram) {
@@ -63,6 +68,9 @@ void ram_poke(std::vector<Byte>& ram, int addr, Byte val) {
     }   
     if (addr < CPT100_RAM_SIZE) {
         ram.at(addr) = val;
+        //auto now = std::chrono::system_clock::now();
+        //std::chrono::duration<double> elapsed_seconds = now - start;
+        //printf("!W:%08d:%06X=%02X\n", (int)(elapsed_seconds.count() * 1000), addr, val.toInt());
     }
 }
 

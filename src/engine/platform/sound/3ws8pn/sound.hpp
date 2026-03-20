@@ -9,10 +9,10 @@
 Overall: Fantasy wavetable soundchip with 8 of wavetable/PCM/noise channels
 Wavetable: Size: 256x256
 Wavetable Modulation: with combining two wavetables (ex. CH1+CH2, CH3+CH8)... Phase Modulation, Ring Modulation, Hard Sync, Window, ...
-PCM: 8bit, RAM 8Mbit (1MB), 20bit I/0 (also can output 16bit with DMA, no volume control)
+PCM: 8bit, RAM 8Mbit (1MB), 20bit I/O (also can output 16bit with DMA, no volume control)
 Noise: LFSR, 1bit output
 Mixer: 16bit Stereo Linear PCM, 48KHz Master Output, each channel has 256 volume steps, 16 panpot (each stereo channel has 16 steps)
-(Virtual) Clock: 9.216MHz, Main Sample Clock, divived by 48, 192KHz, all sound frequencies were quantized by this value
+Master Clock: 9.216MHz, Main Sample Clock, divived by 48, 192KHz, all sound frequencies were quantized by this value
 Registers (all bytes are in big endian):
 0x000-0x7FF: Channel Wave Table Data (8 channels x 256 bytes)
  - +0x00~0xFF: Wave Table Data (256 bytes)

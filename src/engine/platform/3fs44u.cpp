@@ -11,7 +11,7 @@ unsigned int sfs_chanaddrs_freq[6] = {0x10000,0x10010,0x10020,0x10030,0x10084,0x
 unsigned int sfs_chanaddrs_volume[6] = {0x10009,0x10019,0x10029,0x10039,0x10088,0x10089};
 
 void DivPlatform3FS44U::doWrite(unsigned int addr, unsigned char data) {
-  cpt->ram_poke(cpt->ram,(int)addr,(Cpt100_sound::Byte)data);
+  cpt->ram_poke(cpt->ram,(int)addr,(uint8_t)data);
 }
 
 void DivPlatform3FS44U::updateWave(int ch) {

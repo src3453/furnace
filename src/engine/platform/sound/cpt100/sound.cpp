@@ -3,6 +3,10 @@
 
 #include <math.h>
 #include <random>
+#include <vector>
+#include <chrono>
+#include <ctime>
+#include <tuple>
 
 
 class Cpt100_sound {
@@ -54,25 +58,25 @@ public:
 
     void applyEnveloveToRegisters(std::vector<Byte> &reg, std::vector<Byte> &regenvl, int opNum, int ch, double dt) {
         ADSRConfig adsr;
-        adsr.attackTime = ((double)regenvl.at(ch*16+opNum*4+0).toInt())/64;
-        adsr.decayTime = ((double)regenvl.at(ch*16+opNum*4+1).toInt())/64;
-        adsr.sustainLevel = ((double)regenvl.at(ch*16+opNum*4+2).toInt())/255;
-        adsr.releaseTime = ((double)regenvl.at(ch*16+opNum*4+3).toInt())/64;
-        if (regenvl.at(64+ch).toInt() == 0 && gateTick.at(ch) == 1) {
+        adsr.attackTime = ((double)regenvl.at(ch*16+opNum*4+0))/64;
+        adsr.decayTime = ((double)regenvl.at(ch*16+opNum*4+1))/64;
+        adsr.sustainLevel = ((double)regenvl.at(ch*16+opNum*4+2))/255;
+        adsr.releaseTime = ((double)regenvl.at(ch*16+opNum*4+3))/64;
+        if (regenvl.at(64+ch) == 0 && gateTick.at(ch) == 1) {
             envl.at((size_t)(ch*4+opNum)).noteOff();
             if(opNum == 3) {
                 gateTick.at(ch)=0;
             }
             
         }
-        if (regenvl.at(64+ch).toInt() == 1 && gateTick.at(ch) == 0) {
+        if (regenvl.at(64+ch) == 1 && gateTick.at(ch) == 0) {
             envl.at((size_t)(ch*4+opNum)).reset(EnvGenerator::State::Attack); 
             if(opNum == 3) {
                 gateTick.at(ch)=1;
             }
         }
         //std::cout << dt << std::endl; //envl.at((size_t)(ch*4+opNum)).m_elapsed
-        reg.at(ch*16+opNum+5) = (Byte)(envl.at((size_t)(ch*4+opNum)).currentLevel()*255*((double)(reg.at(ch*16+opNum+9).toInt())/255));
+        reg.at(ch*16+opNum+5) = (Byte)(envl.at((size_t)(ch*4+opNum)).currentLevel()*255*((double)(reg.at(ch*16+opNum+9))/255));
         envl.at((size_t)(ch*4+opNum)).update(adsr,dt);
     }
 
@@ -87,10 +91,10 @@ public:
         regwt = ram_peek2array(ram,0x10084,76);
 
         for (int ch=0;ch<2;ch++) {
-            if(regwt.at(ch+6).toInt() == 4) {
-                pcm_addr[ch] = regwt.at(12+32*ch+0).toInt()*65536+regwt.at(12+32*ch+1).toInt()*256+regwt.at(12+32*ch+2).toInt();
-                pcm_len[ch] = regwt.at(12+32*ch+3).toInt()*65536+regwt.at(12+32*ch+4).toInt()*256+regwt.at(12+32*ch+5).toInt();
-                pcm_loop[ch] = regwt.at(12+32*ch+6).toInt()*65536+regwt.at(12+32*ch+7).toInt()*256+regwt.at(12+32*ch+8).toInt();
+            if(regwt.at(ch+6) == 4) {
+                pcm_addr[ch] = regwt.at(12+32*ch+0)*65536+regwt.at(12+32*ch+1)*256+regwt.at(12+32*ch+2);
+                pcm_len[ch] = regwt.at(12+32*ch+3)*65536+regwt.at(12+32*ch+4)*256+regwt.at(12+32*ch+5);
+                pcm_loop[ch] = regwt.at(12+32*ch+6)*65536+regwt.at(12+32*ch+7)*256+regwt.at(12+32*ch+8);
                 //std::cout << pcm_addr[ch] << std::endl;
                 //std::cout << pcm_len[ch] << std::endl;
             }
@@ -106,49 +110,49 @@ public:
             }
             for(int ch=0; ch < 4; ch++) {
                 int addr = 16*ch;
-                double f1 = ((double)reg.at(addr+0).toInt()*256+reg.at(addr+1).toInt());
+                double f1 = ((double)reg.at(addr+0)*256+reg.at(addr+1));
                 t1[ch] = t1[ch] + (f1/CPT100_SAMPLE_FREQ);
-                double v1 = ((double)reg.at(addr+5).toInt())/255;
-                t2[ch] = t2[ch] + ((double)(f1*reg.at(addr+2).toInt()))/16/CPT100_SAMPLE_FREQ;
-                double v2 = ((double)reg.at(addr+6).toInt())/128;
-                t3[ch] = t3[ch] + ((double)(f1*reg.at(addr+3).toInt()))/16/CPT100_SAMPLE_FREQ;
-                double v3 = ((double)reg.at(addr+7).toInt())/128;
-                t4[ch] = t4[ch] + ((double)(f1*reg.at(addr+4).toInt()))/16/CPT100_SAMPLE_FREQ;
-                double v4 = ((double)reg.at(addr+8).toInt())/128;
-                int w1 = reg.at(addr+13).toInt()>>4;
-                int w2 = reg.at(addr+13).toInt()&0xf;
-                int w3 = reg.at(addr+14).toInt()>>4;
-                int w4 = reg.at(addr+14).toInt()&0xf;
+                double v1 = ((double)reg.at(addr+5))/255;
+                t2[ch] = t2[ch] + ((double)(f1*reg.at(addr+2)))/16/CPT100_SAMPLE_FREQ;
+                double v2 = ((double)reg.at(addr+6))/128;
+                t3[ch] = t3[ch] + ((double)(f1*reg.at(addr+3)))/16/CPT100_SAMPLE_FREQ;
+                double v3 = ((double)reg.at(addr+7))/128;
+                t4[ch] = t4[ch] + ((double)(f1*reg.at(addr+4)))/16/CPT100_SAMPLE_FREQ;
+                double v4 = ((double)reg.at(addr+8))/128;
+                int w1 = reg.at(addr+13)>>4;
+                int w2 = reg.at(addr+13)&0xf;
+                int w3 = reg.at(addr+14)>>4;
+                int w4 = reg.at(addr+14)&0xf;
                 result[ch] += generateFMWave(t1[ch],v1,t2[ch],v2,t3[ch],v3,t4[ch],v4,w1,w2,w3,w4);
             }
             for(int ch=0; ch<2; ch++) {
-                double ft = ((double)regwt.at(ch*2+0).toInt()*256+regwt.at(ch*2+1).toInt());
+                double ft = ((double)regwt.at(ch*2+0)*256+regwt.at(ch*2+1));
                 twt[ch] = twt[ch] + (ft/CPT100_SAMPLE_FREQ)*32;
-                double vt = ((double)regwt.at(ch+4).toInt())/255;
+                double vt = ((double)regwt.at(ch+4))/255;
                 int val = 0;
-                if (regwt.at(ch+6).toInt() == 1) {
-                    val = regwt.at(12+32*ch+((int)twt[ch]%32)).toInt();
+                if (regwt.at(ch+6) == 1) {
+                    val = regwt.at(12+32*ch+((int)twt[ch]%32));
                     if ((int)(twt[ch]*2)%2 == 0) {
                         val /= 16;
                     } else {
                         val %= 16;
                     }
                     val *= 16;
-                } else if(regwt.at(ch+6).toInt() == 0) {
-                val = regwt.at(12+32*ch+((int)twt[ch]%32)).toInt();
-                } else if(regwt.at(ch+6).toInt() == 2) {
+                } else if(regwt.at(ch+6) == 0) {
+                val = regwt.at(12+32*ch+((int)twt[ch]%32));
+                } else if(regwt.at(ch+6) == 2) {
                     val = noise.at(((int)twt[ch]%65536))*255;
-                } else if(regwt.at(ch+6).toInt() == 3) {
+                } else if(regwt.at(ch+6) == 3) {
                     val = noise.at(((int)twt[ch]%64))*255;
-                } else if(regwt.at(ch+6).toInt() == 4) {
+                } else if(regwt.at(ch+6) == 4) {
                     if (pcm_addr[ch]+(int)twt[ch] > pcm_len[ch] && pcm_loop[ch] < pcm_len[ch]) {
-                        val = ram_peek(ram,pcm_addr[ch]+((int)twt[ch]%(pcm_len[ch]-pcm_loop[ch]))+(pcm_addr[ch]-pcm_loop[ch])).toInt();
+                        val = ram_peek(ram,pcm_addr[ch]+((int)twt[ch]%(pcm_len[ch]-pcm_loop[ch]))+(pcm_addr[ch]-pcm_loop[ch]));
                     } else {
-                        val = ram_peek(ram,std::min(pcm_addr[ch]+(int)twt[ch],pcm_len[ch])).toInt();
+                        val = ram_peek(ram,std::min(pcm_addr[ch]+(int)twt[ch],pcm_len[ch]));
                     }
                 }
                 val -= 128;
-                double omega = 2.0 * 3.14159265 * ((double)regwt.at(ch+8).toInt()+1)*32 / CPT100_SAMPLE_FREQ;
+                double omega = 2.0 * 3.14159265 * ((double)regwt.at(ch+8)+1)*32 / CPT100_SAMPLE_FREQ;
                 double alpha = sin(omega) / (2.0 * 1.5);
                 double a0 =  1.0 + alpha;
                 double a1 = -2.0 * cos(omega);
@@ -161,7 +165,7 @@ public:
                 in1[ch]  = val; 
                 out2[ch] = out1[ch];     
                 out1[ch] = output; 
-                if (regwt.at(ch+8).toInt() == 0) {
+                if (regwt.at(ch+8) == 0) {
                     result[ch+4] += (double)(val)*255*vt;
                 } else {
                     result[ch+4] += std::min(std::max((double)output*255*vt,-32768.0),32767.0);
