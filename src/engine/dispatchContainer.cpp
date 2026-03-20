@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -93,6 +93,7 @@
 #include "platform/bifurcator.h"
 #include "platform/sid2.h"
 #include "platform/sid3.h"
+#include "platform/multipcm.h"
 #include "platform/dummy.h"
 #include "platform/cpt100.h"
 #include "platform/s3hs.h"
@@ -348,7 +349,6 @@ void DivDispatchContainer::init(DivSystem sys, DivEngine* eng, int chanCount, do
         ((DivPlatformArcade*)dispatch)->setYMFM(eng->getConfInt("arcadeCore",0)==0);
       }
       break;
-    case DIV_SYSTEM_YM2610:
     case DIV_SYSTEM_YM2610_FULL:
       dispatch=new DivPlatformYM2610;
       if (isRender) {
@@ -357,7 +357,6 @@ void DivDispatchContainer::init(DivSystem sys, DivEngine* eng, int chanCount, do
         ((DivPlatformYM2610*)dispatch)->setCombo(eng->getConfInt("opnbCore",1));
       }
       break;
-    case DIV_SYSTEM_YM2610_EXT:
     case DIV_SYSTEM_YM2610_FULL_EXT:
       dispatch=new DivPlatformYM2610Ext;
       if (isRender) {
@@ -602,7 +601,6 @@ void DivDispatchContainer::init(DivSystem sys, DivEngine* eng, int chanCount, do
       dispatch=new DivPlatformQSound;
       break;
     case DIV_SYSTEM_SEGAPCM:
-    case DIV_SYSTEM_SEGAPCM_COMPAT:
       dispatch=new DivPlatformSegaPCM;
       break;
     case DIV_SYSTEM_X1_010:
@@ -790,6 +788,9 @@ void DivDispatchContainer::init(DivSystem sys, DivEngine* eng, int chanCount, do
       } else {
         ((DivPlatformOPL*)dispatch)->setCore(eng->getConfInt("opl4Core",0));
       }
+      break;
+    case DIV_SYSTEM_MULTIPCM:
+      dispatch=new DivPlatformMultiPCM;
       break;
     case DIV_SYSTEM_DUMMY:
       dispatch=new DivPlatformDummy;

@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@ class DivPlatformPCE: public DivDispatch {
     unsigned int dacPos;
     int dacSample;
     unsigned char pan;
-    bool noise, pcm, furnaceDac, deferredWaveUpdate, setPos;
+    bool noise, pcm, deferredWaveUpdate, setPos;
     signed short wave;
     int macroVolMul, noiseSeek;
     DivWaveSynth ws;
@@ -48,7 +48,6 @@ class DivPlatformPCE: public DivDispatch {
       pan(255),
       noise(false),
       pcm(false),
-      furnaceDac(false),
       deferredWaveUpdate(false),
       setPos(false),
       wave(-1),
@@ -70,7 +69,7 @@ class DivPlatformPCE: public DivDispatch {
   unsigned char lastPan;
 
   int curChan;
-  unsigned char sampleBank, lfoMode, lfoSpeed;
+  unsigned char lfoMode, lfoSpeed;
   PCE_PSG* pce;
   unsigned char regPool[128];
   void updateWave(int ch);
@@ -96,6 +95,7 @@ class DivPlatformPCE: public DivDispatch {
     void tick(bool sysTick=true);
     void muteChannel(int ch, bool mute);
     int getOutputCount();
+    bool hasSoftPan(int ch);
     bool keyOffAffectsArp(int ch);
     bool hasAcquireDirect();
     void setFlags(const DivConfig& flags);

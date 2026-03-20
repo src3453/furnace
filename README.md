@@ -6,7 +6,7 @@ the biggest multi-system chiptune tracker ever made!
 
 [mini-site](https://tildearrow.org/furnace/) | [downloads](#downloads) | [installation](#installation) | [Unix/Linux packages](#packages)
 
-[documentation/discussion//help](#quick-references) | [developer info](#developer-info)
+[documentation/discussion/help](#quick-references) | [developer info](#developer-info)
 
 ---
 ## downloads
@@ -148,7 +148,7 @@ for other operating systems, you may [build the source](#developer-info).
   - built-in sample editor
   - chip mixing settings
   - built-in visualizer in pattern view
-- open-source under GPLv2 or later.
+- open-source under GPLv2 or later/GPLv3. see [LICENSE](LICENSE).
 
 ---
 
@@ -159,6 +159,8 @@ for other operating systems, you may [build the source](#developer-info).
   - [documentation](doc/README.md).
   - [frequently asked questions (FAQ)](doc/1-intro/faq.md).
 - **discussion**: see the [Discussions](https://github.com/tildearrow/furnace/discussions) section, or the [Discord](https://discord.gg/QhA26dXD23).
+  - these are the only **official** discussion channels for Furnace. **any other places are not official and not managed by me (tildearrow).**
+  - no, there isn't an official Furnace Facebook group. the one that seemingly exists isn't mine.
 
 ## packages
 
@@ -436,9 +438,12 @@ try running CMake again but tell it to use the Visual Studio generator (`-G "Vis
 
 #### CMake was unable to find a build program
 
-don't run CMake standalone unless you have Visual Studio or a compiler installed.
+if you are on Windows, don't run CMake standalone unless you have Visual Studio or a compiler installed.
 
 if you are in the MSYS2 MINGW64 environment, make sure you installed `mingw-w64-x86_64-cmake` instead of `cmake`. restart the environment after doing so.
+if you are not, exit and start the MINGW64 environment (not the UCRT64 one!). read the guide!
+
+if you are not using Windows then you probably haven't set your development environment up correctly. read the guide again.
 
 #### Does not match the generator used previously
 
@@ -453,7 +458,13 @@ if you are using MSYS2, make sure you have launched the MINGW64 environment. do 
 
 #### ALSA API requested but no ALSA dev libraries found
 
-install the ALSA development libraries (libasound-dev or something like that).
+if you are on Windows, using MSYS2, then you most likely disregarded the guide and are attempting to build in the UCRT64 environment. don't do that!
+
+get out of the UCRT64 environment and start the MINGW64 one.
+
+however, if you already are in the MINGW64 environment, then make sure you installed `mingw-w64-x86_64-cmake` instead of `cmake`. restart the environment after doing so.
+
+otherwise, install the ALSA development libraries (libasound-dev or something like that).
 
 also make sure you've installed the rest of dependencies so you don't hit one of the errors below...
 
@@ -501,7 +512,7 @@ this will play a compatible file and enable the commands view.
 
 # footnotes
 
-copyright (C) 2021-2025 tildearrow and contributors.
+copyright (C) 2021-2026 tildearrow and contributors.
 
 This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
 

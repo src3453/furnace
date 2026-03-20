@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,11 +37,15 @@ struct DivCSChannelState {
   int note, pitch;
   int volume, volMax, volSpeed, volSpeedTarget;
   int vibratoDepth, vibratoRate, vibratoPos, vibratoRange, vibratoShape;
+  int tremoloDepth, tremoloRate, tremoloPos;
+  int panbrelloDepth, panbrelloRate, panbrelloPos;
   int portaTarget, portaSpeed;
   unsigned char arp, arpStage, arpTicks;
+  unsigned char panL, panR;
+  signed char panSpeed;
 
   unsigned int callStack[DIV_MAX_CSSTACK];
-  unsigned char callStackPos;
+  unsigned char callStackPos, callStackSize;
 
   unsigned int trace[DIV_MAX_CSTRACE];
   unsigned char tracePos;
@@ -61,12 +65,24 @@ struct DivCSChannelState {
     vibratoDepth(0),
     vibratoRate(0),
     vibratoPos(0),
+    vibratoRange(15),
+    vibratoShape(0),
+    tremoloDepth(0),
+    tremoloRate(0),
+    tremoloPos(0),
+    panbrelloDepth(0),
+    panbrelloRate(0),
+    panbrelloPos(0),
     portaTarget(0),
     portaSpeed(0),
     arp(0),
     arpStage(0),
     arpTicks(0),
+    panL(255),
+    panR(255),
+    panSpeed(0),
     callStackPos(0),
+    callStackSize(0),
     tracePos(0) {
     for (int i=0; i<DIV_MAX_CSTRACE; i++) {
       trace[i]=0;
@@ -82,14 +98,17 @@ class DivCSPlayer {
   SafeReader stream;
   DivCSChannelState chan[DIV_MAX_CHANS];
   unsigned char fastDelays[16];
-  unsigned char fastCmds[16];
+  unsigned char fastIns[6];
+  unsigned char fastVols[6];
+  unsigned char fastCmds[4];
   unsigned char arpSpeed;
   unsigned int fileChans;
-  unsigned int curTick, fastDelaysOff, fastCmdsOff, deltaCyclePos;
+  unsigned int curTick, fastDelaysOff, fastInsOff, fastVolsOff, fastCmdsOff, deltaCyclePos;
   bool longPointers;
   bool bigEndian;
 
   short vibTable[64];
+  short tremTable[128];
   public:
     unsigned char* getData();
     unsigned short* getDataAccess();
@@ -97,6 +116,8 @@ class DivCSPlayer {
     DivCSChannelState* getChanState(int ch);
     unsigned int getFileChans();
     unsigned char* getFastDelays();
+    unsigned char* getFastIns();
+    unsigned char* getFastVols();
     unsigned char* getFastCmds();
     unsigned int getCurTick();
     void cleanup();

@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -55,8 +55,8 @@ class DivPlatformGA20: public DivDispatch, public iremga20_intf {
       val(v) {}
   };
   FixedQueue<QueuedWrite,256> writes;
-  unsigned int sampleOffGA20[256];
-  bool sampleLoaded[256];
+  unsigned int* sampleOffGA20;
+  bool* sampleLoaded;
 
   int oldOut;
 
@@ -104,10 +104,8 @@ class DivPlatformGA20: public DivDispatch, public iremga20_intf {
     virtual void renderSamples(int chipID) override;
     virtual int init(DivEngine* parent, int channels, int sugRate, const DivConfig& flags) override;
     virtual void quit() override;
-    DivPlatformGA20():
-      DivDispatch(),
-      iremga20_intf(),
-      ga20(*this) {}
+    DivPlatformGA20();
+    ~DivPlatformGA20();
 };
 
 #endif

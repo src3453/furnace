@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -347,7 +347,7 @@ int DivPlatformVERA::dispatch(DivCommand c) {
       }
       chan[c.chan].active=true;
       chan[c.chan].macroInit(parent->getIns(chan[c.chan].ins,DIV_INS_VERA));
-      if (!parent->song.brokenOutVol && !chan[c.chan].std.vol.will) {
+      if (!parent->song.compatFlags.brokenOutVol && !chan[c.chan].std.vol.will) {
         chan[c.chan].outVol=chan[c.chan].vol;
       }
       break;
@@ -421,7 +421,7 @@ int DivPlatformVERA::dispatch(DivCommand c) {
       break;
     case DIV_CMD_PRE_PORTA:
       if (chan[c.chan].active && c.value2) {
-        if (parent->song.resetMacroOnPorta) chan[c.chan].macroInit(parent->getIns(chan[c.chan].ins,DIV_INS_VERA));
+        if (parent->song.compatFlags.resetMacroOnPorta) chan[c.chan].macroInit(parent->getIns(chan[c.chan].ins,DIV_INS_VERA));
       }
       if (!chan[c.chan].inPorta && c.value && chan[c.chan].std.arp.will && !NEW_ARP_STRAT) chan[c.chan].baseFreq=calcNoteFreq(c.chan,chan[c.chan].note);
       chan[c.chan].inPorta=c.value;

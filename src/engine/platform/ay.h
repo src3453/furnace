@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,7 +65,7 @@ class DivPlatformAY8910: public DivDispatch {
 
       struct DAC {
         int sample, rate, period, pos, out;
-        bool furnaceDAC, setPos;
+        bool setPos;
 
         DAC():
           sample(-1),
@@ -73,7 +73,6 @@ class DivPlatformAY8910: public DivDispatch {
           period(0),
           pos(0),
           out(0),
-          furnaceDAC(false),
           setPos(false) {}
       } dac;
 
@@ -121,7 +120,6 @@ class DivPlatformAY8910: public DivDispatch {
     unsigned char regPool[16];
     unsigned char lastBusy;
   
-    unsigned char sampleBank;
     unsigned char stereoSep;
     unsigned char selCore;
 
@@ -129,6 +127,8 @@ class DivPlatformAY8910: public DivDispatch {
 
     int delay;
     int lastOut[2];
+
+    unsigned char atomicTFXDelay;
 
     bool extMode;
     unsigned int extClock;

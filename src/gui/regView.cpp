@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -38,10 +38,23 @@ void FurnaceGUI::drawRegView() {
         ImGui::Text(_("- no register pool available"));
       } else {
         ImGui::PushFont(patFont);
-        if (depth == 16) {
-          if (ImGui::BeginTable("Memory",9)) {
-            ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed);
-            
+        if (ImGui::BeginTable("Memory",17)) {
+          float widthOne=ImGui::CalcTextSize("0").x;
+          if (size>0xfff) { // no im got gonna put some clamped log formula instead
+            ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed, widthOne*4.0f);
+          } else if (size>0xff) {
+            ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed, widthOne*3.0f);
+          } else {
+            ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed, widthOne*2.0f);
+          }
+          
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          for (int i=0; i<16; i++) {
+            ImGui::TableNextColumn();
+            ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",i);
+          }
+          for (int i=0; i<=((size-1)>>4); i++) {
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             for (int i=0; i<8; i++) {

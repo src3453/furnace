@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -53,13 +53,13 @@ class DivPlatformQSound: public DivDispatch {
   size_t sampleMemLen;
   size_t sampleMemLenBS;
   size_t sampleMemUsage;
-  bool sampleLoaded[256];
-  bool sampleLoadedBS[256];
+  bool* sampleLoaded;
+  bool* sampleLoadedBS;
   struct qsound_chip chip;
   unsigned short regPool[512];
 
-  unsigned int offPCM[256];
-  unsigned int offBS[256];
+  unsigned int* offPCM;
+  unsigned int* offBS;
 
   DivMemoryComposition memCompo;
 
@@ -81,6 +81,7 @@ class DivPlatformQSound: public DivDispatch {
     void tick(bool sysTick=true);
     void muteChannel(int ch, bool mute);
     int getOutputCount();
+    bool hasSoftPan(int ch);
     bool keyOffAffectsArp(int ch);
     void setFlags(const DivConfig& flags);
     void notifyInsChange(int ins);
@@ -93,11 +94,14 @@ class DivPlatformQSound: public DivDispatch {
     const char* getSampleMemName(int index=0);
     size_t getSampleMemCapacity(int index = 0);
     size_t getSampleMemUsage(int index = 0);
+    DivSamplePos getSamplePos(int ch);
     bool isSampleLoaded(int index, int sample);
     const DivMemoryComposition* getMemCompo(int index);
     void renderSamples(int chipID);
     int init(DivEngine* parent, int channels, int sugRate, const DivConfig& flags);
     void quit();
+    DivPlatformQSound();
+    ~DivPlatformQSound();
 };
 
 #endif

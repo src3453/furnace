@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -37,7 +37,6 @@ class DivPlatformGenesis: public DivPlatformOPN {
     };
 
     struct Channel: public FMChannelStereo {
-      bool furnaceDac;
       bool dacMode;
       int dacPeriod;
       int dacRate;
@@ -46,11 +45,9 @@ class DivPlatformGenesis: public DivPlatformOPN {
       int dacDelay;
       bool dacDirection;
       bool setPos;
-      unsigned char sampleBank;
       signed char dacOutput;
       Channel():
         FMChannelStereo(),
-        furnaceDac(false),
         dacMode(false),
         dacPeriod(0),
         dacRate(0),
@@ -59,7 +56,6 @@ class DivPlatformGenesis: public DivPlatformOPN {
         dacDelay(0),
         dacDirection(false),
         setPos(false),
-        sampleBank(0),
         dacOutput(0) {}
     };
     Channel chan[10];

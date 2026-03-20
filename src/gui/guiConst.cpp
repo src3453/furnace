@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,6 +26,22 @@
 
 const int opOrder[4]={
   0, 2, 1, 3
+};
+
+const float topKeyStarts[5]={
+  0.9f/7.0f, 2.1f/7.0f, 3.9f/7.0f, 5.0f/7.0f, 6.1f/7.0f
+};
+
+const int topKeyNotes[5]={
+  1, 3, 6, 8, 10
+};
+
+const int bottomKeyNotes[7]={
+  0, 2, 4, 5, 7, 9, 11
+};
+
+const bool isTopKey[12]={
+  false, true, false, true, false, false, true, false, true, false, true, false
 };
 
 const char* noteNames[180]={
@@ -215,7 +231,7 @@ const char* sampleDepths[DIV_SAMPLE_DEPTH_MAX]={
   "C219 PCM",
   "IMA ADPCM",
   "12-bit PCM",
-  NULL,
+  "4-bit PCM",
   "16-bit PCM"
 };
 
@@ -600,11 +616,13 @@ const FurnaceGUIActionDef guiActions[GUI_ACTION_MAX]={
   D("STEP_DOWN", _N("Decrease edit step"), FURKMOD_CMD|SDLK_KP_DIVIDE),
   D("TOGGLE_EDIT", _N("Toggle edit mode"), SDLK_SPACE),
   D("METRONOME", _N("Metronome"), FURKMOD_CMD|SDLK_m),
+  D("ORDER_LOCK", _N("Toggle order lock"), 0),
   D("REPEAT_PATTERN", _N("Toggle repeat pattern"), 0),
   D("FOLLOW_ORDERS", _N("Follow orders"), 0),
   D("FOLLOW_PATTERN", _N("Follow pattern"), 0),
   D("FULLSCREEN", _N("Toggle full-screen"), SDLK_F11),
   D("TX81Z_REQUEST", _N("Request voice from TX81Z"), 0),
+  D("OPEN_EDIT_MENU", _N("Open pattern edit menu"), 0),
   D("PANIC", _N("Panic"), SDLK_F12),
   D("CLEAR", _N("Clear song data"), 0),
 
@@ -642,6 +660,8 @@ const FurnaceGUIActionDef guiActions[GUI_ACTION_MAX]={
   D("WINDOW_COMPAT_FLAGS", _N("Compatibility Flags"), 0),
   D("WINDOW_PIANO", _N("Piano"), 0),
   D("WINDOW_NOTES", _N("Song Comments"), 0),
+  D("WINDOW_TUNER", _N("Tuner"), 0),
+  D("WINDOW_SPECTRUM", _N("Spectrum"), 0),
   D("WINDOW_CHANNELS", _N("Channels"), 0),
   D("WINDOW_PAT_MANAGER", _N("Pattern Manager"), 0),
   D("WINDOW_SYS_MANAGER", _N("Chip Manager"), 0),
@@ -657,6 +677,8 @@ const FurnaceGUIActionDef guiActions[GUI_ACTION_MAX]={
   D("WINDOW_MEMORY", _N("Memory Composition"), 0),
   D("WINDOW_CS_PLAYER", _N("Command Stream Player"), 0),
   D("WINDOW_USER_PRESETS", _N("User Presets"), 0),
+  D("WINDOW_REF_PLAYER", _N("Reference Music Player"), 0),
+  D("MULTI_INS_SETUP", _N("Multi-Instrument Setup"), 0),
 
   D("COLLAPSE_WINDOW", _N("Collapse/expand current window"), 0),
   D("CLOSE_WINDOW", _N("Close current window"), FURKMOD_SHIFT|SDLK_ESCAPE),
@@ -826,6 +848,9 @@ const FurnaceGUIActionDef guiActions[GUI_ACTION_MAX]={
   D("SAMPLE_MAKE_INS", _N("Sample editor: Create instrument from sample"), 0),
   D("SAMPLE_SET_LOOP", _N("Sample editor: Set loop to selection"), FURKMOD_CMD|SDLK_l),
   D("SAMPLE_CREATE_WAVE", _N("Sample editor: Create wavetable from selection"), FURKMOD_CMD|SDLK_w),
+  D("SAMPLE_COPY_NEW", _N("Sample editor: Copy selection to new sample"), 0),
+  D("SAMPLE_TRIM_AFTER_LOOP", _N("Sample editor: Trim to the end of the loop"), 0),
+  D("SAMPLE_TRIM_TO_LOOP", _N("Sample editor: Trim around loop points"), 0),
   D("SAMPLE_MAX", "", NOT_AN_ACTION),
 
   D("ORDERS_MIN", _N("---Orders"), NOT_AN_ACTION),
@@ -913,6 +938,11 @@ const FurnaceGUIColorDef guiColors[GUI_COLOR_MAX]={
   D(GUI_COLOR_TEXT_SELECTION,"",ImVec4(0.165f,0.313f,0.49f,1.0f)),
   D(GUI_COLOR_TABLE_ROW_EVEN,"",ImVec4(0.0f,0.0f,0.0f,0.0f)),
   D(GUI_COLOR_TABLE_ROW_ODD,"",ImVec4(1.0f,1.0f,1.0f,0.06f)),
+  D(GUI_COLOR_INPUT_TEXT_CURSOR,"",ImVec4(1.0f,1.0f,1.0f,1.0f)),
+  D(GUI_COLOR_TAB_SELECTED_OVERLINE,"",ImVec4(0.26f,0.59f,0.98f,1.0f)),
+  D(GUI_COLOR_TAB_DIMMED_SELECTED_OVERLINE,"",ImVec4(0.5f,0.5f,0.5f,1.0f)),
+  D(GUI_COLOR_TEXT_LINK,"",ImVec4(0.26f,0.59f,0.98f,1.0f)),
+  D(GUI_COLOR_TREE_LINES,"",ImVec4(0.43f,0.43f,0.5f,0.5f)),
 
   D(GUI_COLOR_TOGGLE_OFF,"",ImVec4(0.2f,0.2f,0.2f,1.0f)),
   D(GUI_COLOR_TOGGLE_ON,"",ImVec4(0.2f,0.6f,0.2f,1.0f)),
@@ -928,6 +958,7 @@ const FurnaceGUIColorDef guiColors[GUI_COLOR_MAX]={
   D(GUI_COLOR_FILE_SONG_IMPORT,"",ImVec4(0.5f,1.0f,0.8f,1.0f)),
   D(GUI_COLOR_FILE_INSTR,"",ImVec4(1.0f,0.5f,0.5f,1.0f)),
   D(GUI_COLOR_FILE_AUDIO,"",ImVec4(1.0f,1.0f,0.5f,1.0f)),
+  D(GUI_COLOR_FILE_AUDIO_COMPRESSED,"",ImVec4(0.7f,1.0f,0.3f,1.0f)),
   D(GUI_COLOR_FILE_WAVE,"",ImVec4(1.0f,0.75f,0.5f,1.0f)),
   D(GUI_COLOR_FILE_VGM,"",ImVec4(1.0f,1.0f,0.5f,1.0f)),
   D(GUI_COLOR_FILE_ZSM,"",ImVec4(1.0f,1.0f,0.5f,1.0f)),
@@ -998,6 +1029,14 @@ const FurnaceGUIColorDef guiColors[GUI_COLOR_MAX]={
   D(GUI_COLOR_MACRO_FILTER,"",ImVec4(0.4f,0.2f,1.0f,1.0f)),
   D(GUI_COLOR_MACRO_ENVELOPE,"",ImVec4(0.0f,1.0f,0.5f,1.0f)),
   D(GUI_COLOR_MACRO_GLOBAL,"",ImVec4(1.0f,0.1f,0.1f,1.0f)),
+
+  D(GUI_COLOR_MULTI_INS_1,"",ImVec4(0.2f,1.0f,1.0f,1.0f)),
+  D(GUI_COLOR_MULTI_INS_2,"",ImVec4(0.2f,1.0f,0.2f,1.0f)),
+  D(GUI_COLOR_MULTI_INS_3,"",ImVec4(0.7f,1.0f,0.2f,1.0f)),
+  D(GUI_COLOR_MULTI_INS_4,"",ImVec4(1.0f,0.7f,0.2f,1.0f)),
+  D(GUI_COLOR_MULTI_INS_5,"",ImVec4(1.0f,0.2f,0.2f,1.0f)),
+  D(GUI_COLOR_MULTI_INS_6,"",ImVec4(1.0f,0.2f,1.0f,1.0f)),
+  D(GUI_COLOR_MULTI_INS_7,"",ImVec4(0.4f,0.2f,1.0f,1.0f)),
 
   D(GUI_COLOR_INSTR_STD,"",ImVec4(0.6f,1.0f,0.5f,1.0f)),
   D(GUI_COLOR_INSTR_FM,"",ImVec4(0.6f,0.9f,1.0f,1.0f)),
@@ -1141,6 +1180,8 @@ const FurnaceGUIColorDef guiColors[GUI_COLOR_MAX]={
   D(GUI_COLOR_PATTERN_STATUS_INC,"",ImVec4(0.1f,0.1f,1.0f,1.0f)),
   D(GUI_COLOR_PATTERN_STATUS_BENT,"",ImVec4(1.0f,1.0f,0.1f,1.0f)),
   D(GUI_COLOR_PATTERN_STATUS_DIRECT,"",ImVec4(1.0f,0.5f,0.2f,1.0f)),
+  D(GUI_COLOR_PATTERN_STATUS_WARNING,"",ImVec4(0.98f,0.98f,0.06f,1.0f)),
+  D(GUI_COLOR_PATTERN_STATUS_ERROR,"",ImVec4(0.98f,0.06f,0.06f,1.0f)),
 
   D(GUI_COLOR_PATTERN_PAIR,"",ImVec4(0.6f,0.8f,1.0f,1.0f)),
 
@@ -1159,6 +1200,7 @@ const FurnaceGUIColorDef guiColors[GUI_COLOR_MAX]={
   D(GUI_COLOR_SAMPLE_CHIP_DISABLED,"",ImVec4(0.6f,0.6f,0.6f,1.0f)),
   D(GUI_COLOR_SAMPLE_CHIP_ENABLED,"",ImVec4(0.3f,1.0f,0.3f,1.0f)),
   D(GUI_COLOR_SAMPLE_CHIP_WARNING,"",ImVec4(1.0f,0.75f,0.3f,1.0f)),
+  D(GUI_COLOR_SAMPLE_LOOP_HINT,"",ImVec4(1.0f,0.7f,0.0f,0.8f)),
 
   D(GUI_COLOR_PAT_MANAGER_NULL,"",ImVec4(0.15f,0.15f,0.15f,1.0f)),
   D(GUI_COLOR_PAT_MANAGER_USED,"",ImVec4(0.15f,1.0f,0.15f,1.0f)),
@@ -1209,6 +1251,10 @@ const FurnaceGUIColorDef guiColors[GUI_COLOR_MAX]={
   D(GUI_COLOR_MEMORY_BANK6,"",ImVec4(0.5f,0.1f,1.0f,1.0f)),
   D(GUI_COLOR_MEMORY_BANK7,"",ImVec4(1.0f,0.1f,1.0f,1.0f)),
 
+  D(GUI_COLOR_TUNER_NEEDLE,"",ImVec4(0.1f,0.5f,0.9f,1.0f)),
+  D(GUI_COLOR_TUNER_SCALE_LOW,"",ImVec4(0.1f,1.0f,0.2f,1.0f)),
+  D(GUI_COLOR_TUNER_SCALE_HIGH,"",ImVec4(0.9f,0.1f,0.1f,1.0f)),
+
   D(GUI_COLOR_LOGLEVEL_ERROR,"",ImVec4(1.0f,0.2f,0.2f,1.0f)),
   D(GUI_COLOR_LOGLEVEL_WARNING,"",ImVec4(1.0f,1.0f,0.2f,1.0f)),
   D(GUI_COLOR_LOGLEVEL_INFO,"",ImVec4(0.4f,1.0f,0.4f,1.0f)),
@@ -1239,9 +1285,6 @@ const int availableSystems[]={
   DIV_SYSTEM_C64_PCM,
   DIV_SYSTEM_YM2151,
   DIV_SYSTEM_SEGAPCM,
-  DIV_SYSTEM_SEGAPCM_COMPAT,
-  DIV_SYSTEM_YM2610,
-  DIV_SYSTEM_YM2610_EXT,
   DIV_SYSTEM_YM2610_FULL,
   DIV_SYSTEM_YM2610_FULL_EXT,
   DIV_SYSTEM_YM2610_CSM,
@@ -1330,6 +1373,7 @@ const int availableSystems[]={
   DIV_SYSTEM_SUPERVISION,
   DIV_SYSTEM_UPD1771C,
   DIV_SYSTEM_SID3,
+  DIV_SYSTEM_MULTIPCM,
   DIV_SYSTEM_S3HS,
   DIV_SYSTEM_S3W2,
   0 // don't remove this last one!
@@ -1343,8 +1387,6 @@ const int chipsFM[]={
   DIV_SYSTEM_YM2612_DUALPCM,
   DIV_SYSTEM_YM2612_DUALPCM_EXT,
   DIV_SYSTEM_YM2151,
-  DIV_SYSTEM_YM2610,
-  DIV_SYSTEM_YM2610_EXT,
   DIV_SYSTEM_YM2610_FULL,
   DIV_SYSTEM_YM2610_FULL_EXT,
   DIV_SYSTEM_YM2610_CSM,
@@ -1447,7 +1489,6 @@ const int chipsSpecial[]={
 // sample
 const int chipsSample[]={
   DIV_SYSTEM_SEGAPCM,
-  DIV_SYSTEM_SEGAPCM_COMPAT,
   DIV_SYSTEM_AMIGA,
   DIV_SYSTEM_QSOUND,
   DIV_SYSTEM_X1_010,
@@ -1468,6 +1509,7 @@ const int chipsSample[]={
   DIV_SYSTEM_GBA_MINMOD,
   DIV_SYSTEM_OPL4,
   DIV_SYSTEM_OPL4_DRUMS,
+  DIV_SYSTEM_MULTIPCM,
   0 // don't remove this last one!
 };
 

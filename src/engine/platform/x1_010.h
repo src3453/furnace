@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -70,7 +70,7 @@ class DivPlatformX1_010: public DivDispatch, public vgsound_emu_mem_intf {
     int fixedFreq;
     int wave, sample;
     unsigned char pan, autoEnvNum, autoEnvDen;
-    bool envChanged, furnacePCM, pcm, setPos;
+    bool envChanged, pcm, setPos;
     int lvol, rvol;
     int macroVolMul;
     unsigned char waveBank;
@@ -84,7 +84,7 @@ class DivPlatformX1_010: public DivDispatch, public vgsound_emu_mem_intf {
         autoEnvNum=autoEnvDen=0;
         active=false;
         insChanged=envChanged=freqChanged=true;
-        keyOn=keyOff=inPorta=furnacePCM=pcm=setPos=false;
+        keyOn=keyOff=inPorta=pcm=setPos=false;
         vol=outVol=lvol=rvol=15;
         waveBank=0;
     }
@@ -97,7 +97,6 @@ class DivPlatformX1_010: public DivDispatch, public vgsound_emu_mem_intf {
       autoEnvNum(0),
       autoEnvDen(0),
       envChanged(true),
-      furnacePCM(false),
       pcm(false),
       setPos(false),
       lvol(15),
@@ -112,13 +111,12 @@ class DivPlatformX1_010: public DivDispatch, public vgsound_emu_mem_intf {
   bool stereo=false;
   unsigned char* sampleMem;
   size_t sampleMemLen;
-  unsigned char sampleBank;
   x1_010_core x1_010;
 
   bool isBanked=false;
   unsigned int bankSlot[8];
-  unsigned int sampleOffX1[256];
-  bool sampleLoaded[256];
+  unsigned int* sampleOffX1;
+  bool* sampleLoaded;
 
   DivMemoryComposition memCompo;
 
@@ -143,6 +141,7 @@ class DivPlatformX1_010: public DivDispatch, public vgsound_emu_mem_intf {
     void tick(bool sysTick=true);
     void muteChannel(int ch, bool mute);
     int getOutputCount();
+    bool hasSoftPan(int ch);
     bool keyOffAffectsArp(int ch);
     float getPostAmp();
     void setFlags(const DivConfig& flags);
@@ -159,10 +158,7 @@ class DivPlatformX1_010: public DivDispatch, public vgsound_emu_mem_intf {
     const char** getRegisterSheet();
     int init(DivEngine* parent, int channels, int sugRate, const DivConfig& flags);
     void quit();
-    DivPlatformX1_010():
-      DivDispatch(),
-      vgsound_emu_mem_intf(),
-      x1_010(*this) {}
+    DivPlatformX1_010();
     ~DivPlatformX1_010();
 };
 

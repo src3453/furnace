@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,8 +44,8 @@ class DivPlatformYMZ280B: public DivDispatch {
   DivDispatchOscBuffer* oscBuf[8];
   bool isMuted[8];
   int chipType;
-  unsigned int sampleOff[256];
-  bool sampleLoaded[256];
+  unsigned int* sampleOff;
+  bool* sampleLoaded;
 
   unsigned char* sampleMem;
   size_t sampleMemLen;
@@ -70,6 +70,7 @@ class DivPlatformYMZ280B: public DivDispatch {
     void muteChannel(int ch, bool mute);
     float getPostAmp();
     int getOutputCount();
+    bool hasSoftPan(int ch);
     void setChipModel(int type);
     void notifyInsChange(int ins);
     void notifyWaveChange(int wave);
@@ -86,6 +87,8 @@ class DivPlatformYMZ280B: public DivDispatch {
     void setFlags(const DivConfig& flags);
     int init(DivEngine* parent, int channels, int sugRate, const DivConfig& flags);
     void quit();
+    DivPlatformYMZ280B();
+    ~DivPlatformYMZ280B();
   private:
     void writeOutVol(int ch);
 };

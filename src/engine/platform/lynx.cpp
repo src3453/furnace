@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -361,7 +361,7 @@ int DivPlatformLynx::dispatch(DivCommand c) {
       chan[c.chan].active=true;
       WRITE_VOLUME(c.chan,(isMuted[c.chan]?0:(chan[c.chan].vol&127)));
       chan[c.chan].macroInit(ins);
-      if (!parent->song.brokenOutVol && !chan[c.chan].std.vol.will) {
+      if (!parent->song.compatFlags.brokenOutVol && !chan[c.chan].std.vol.will) {
         chan[c.chan].outVol=chan[c.chan].vol;
       }
       break;
@@ -429,7 +429,7 @@ int DivPlatformLynx::dispatch(DivCommand c) {
         }
       }
       chan[c.chan].freqChanged=true;
-      if (chan[c.chan].pcm && parent->song.linearPitch==2) {
+      if (chan[c.chan].pcm && parent->song.compatFlags.linearPitch) {
         chan[c.chan].sampleBaseFreq=chan[c.chan].baseFreq;
       }
       if (return2) {
@@ -451,9 +451,9 @@ int DivPlatformLynx::dispatch(DivCommand c) {
     }
     case DIV_CMD_PRE_PORTA:
       if (chan[c.chan].active && c.value2) {
-        if (parent->song.resetMacroOnPorta) chan[c.chan].macroInit(parent->getIns(chan[c.chan].ins,DIV_INS_MIKEY));
+        if (parent->song.compatFlags.resetMacroOnPorta) chan[c.chan].macroInit(parent->getIns(chan[c.chan].ins,DIV_INS_MIKEY));
       }
-      if (!chan[c.chan].inPorta && c.value && !parent->song.brokenPortaArp && chan[c.chan].std.arp.will && !NEW_ARP_STRAT) chan[c.chan].baseFreq=NOTE_PERIODIC(chan[c.chan].note);
+      if (!chan[c.chan].inPorta && c.value && !parent->song.compatFlags.brokenPortaArp && chan[c.chan].std.arp.will && !NEW_ARP_STRAT) chan[c.chan].baseFreq=NOTE_PERIODIC(chan[c.chan].note);
       chan[c.chan].inPorta=c.value;
       break;
     case DIV_CMD_SAMPLE_POS:
@@ -487,11 +487,18 @@ int DivPlatformLynx::getOutputCount() {
   return 2;
 }
 
+bool DivPlatformLynx::hasSoftPan(int ch) {
+  return true;
+}
+
 void DivPlatformLynx::forceIns() {
   for (int i=0; i<4; i++) {
     if (chan[i].active) {
       chan[i].insChanged=true;
       chan[i].freqChanged=true;
+      if (!chan[i].pcm) {
+        WRITE_FEEDBACK(i,chan[i].duty.feedback);
+      }
     }
     WRITE_ATTEN(i,chan[i].pan);
   }

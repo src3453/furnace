@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -173,20 +173,12 @@ void FurnaceGUIRenderGL1::clear(ImVec4 color) {
   C(glClear(GL_COLOR_BUFFER_BIT));
 }
 
-bool FurnaceGUIRenderGL1::newFrame() {
-  return ImGui_ImplOpenGL2_NewFrame();
+void FurnaceGUIRenderGL1::newFrame() {
+  ImGui_ImplOpenGL2_NewFrame();
 }
 
 bool FurnaceGUIRenderGL1::canVSync() {
   return swapIntervalSet;
-}
-
-void FurnaceGUIRenderGL1::createFontsTexture() {
-  ImGui_ImplOpenGL2_CreateFontsTexture();
-}
-
-void FurnaceGUIRenderGL1::destroyFontsTexture() {
-  ImGui_ImplOpenGL2_DestroyFontsTexture();
 }
 
 void FurnaceGUIRenderGL1::renderGUI() {

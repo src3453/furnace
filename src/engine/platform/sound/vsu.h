@@ -74,7 +74,8 @@ class VSU
  //
  //
  int EffFreq[6];
- int Envelope[6];
+ int EnvelopeValue[6];
+ int EnvelopeReload[6];
 
  int WavePos[6];
  int ModWavePos;
@@ -86,11 +87,18 @@ class VSU
  int EnvelopeCounter[6];
  int SweepModCounter;
 
+ int SampleClockDivider[6];
  int EffectsClockDivider[6];
  int IntervalClockDivider[6];
  int EnvelopeClockDivider[6];
  int SweepModClockDivider;
 
+  public:
+ int EnvelopeModMask[6];
+ int ModState;
+ int ModLock;
+
+private:
  int NoiseLatcherClockDivider;
  unsigned int NoiseLatcher;
 

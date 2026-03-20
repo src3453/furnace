@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -19,6 +19,8 @@
 
 #include "vb.h"
 #include "../engine.h"
+#include "IconsFontAwesome4.h"
+#include "furIcons.h"
 #include <math.h>
 
 //#define rWrite(a,v) pendingWrites[a]=v;
@@ -252,6 +254,27 @@ void DivPlatformVB::tick(bool sysTick) {
       }
     }
   }
+
+  for (int i=0; i<6; i++) {
+    if ((chan[i].envHigh&3)==0) {
+      chan[i].hasEnvWarning=0;
+    } else {
+      switch (vb->EnvelopeModMask[i]) {
+        case 0: // envelope OK
+          chan[i].hasEnvWarning=0;
+          break;
+        case 1: // envelope has finished
+          chan[i].hasEnvWarning=21;
+          break;
+        case 2: // can't envelope
+          chan[i].hasEnvWarning=22;
+          break;
+      }
+    }
+  }
+  /*if (vb->ModLock) {
+    chan[4].hasEnvWarning=4;
+  }*/
 }
 
 int DivPlatformVB::dispatch(DivCommand c) {
@@ -274,7 +297,7 @@ int DivPlatformVB::dispatch(DivCommand c) {
         }
         chWrite(4,0x00,0x80);
       }
-      if (!parent->song.brokenOutVol && !chan[c.chan].std.vol.will) {
+      if (!parent->song.compatFlags.brokenOutVol && !chan[c.chan].std.vol.will) {
         chan[c.chan].outVol=chan[c.chan].vol;
         writeEnv(c.chan);
       }
@@ -422,9 +445,9 @@ int DivPlatformVB::dispatch(DivCommand c) {
       break;
     case DIV_CMD_PRE_PORTA:
       if (chan[c.chan].active && c.value2) {
-        if (parent->song.resetMacroOnPorta) chan[c.chan].macroInit(parent->getIns(chan[c.chan].ins,DIV_INS_PCE));
+        if (parent->song.compatFlags.resetMacroOnPorta) chan[c.chan].macroInit(parent->getIns(chan[c.chan].ins,DIV_INS_PCE));
       }
-      if (!chan[c.chan].inPorta && c.value && !parent->song.brokenPortaArp && chan[c.chan].std.arp.will && !NEW_ARP_STRAT) chan[c.chan].baseFreq=NOTE_PERIODIC(chan[c.chan].note);
+      if (!chan[c.chan].inPorta && c.value && !parent->song.compatFlags.brokenPortaArp && chan[c.chan].std.arp.will && !NEW_ARP_STRAT) chan[c.chan].baseFreq=NOTE_PERIODIC(chan[c.chan].note);
       chan[c.chan].inPorta=c.value;
       break;
     case DIV_CMD_GET_VOLMAX:
@@ -475,6 +498,16 @@ DivMacroInt* DivPlatformVB::getChanMacroInt(int ch) {
 
 unsigned short DivPlatformVB::getPan(int ch) {
   return ((chan[ch].pan&0xf0)<<4)|(chan[ch].pan&15);
+}
+
+DivChannelModeHints DivPlatformVB::getModeHints(int ch) {
+  DivChannelModeHints ret;
+  //if (ch>4) return ret;
+  ret.count=1;
+  ret.hint[0]=ICON_FA_EXCLAMATION_TRIANGLE;
+  ret.type[0]=chan[ch].hasEnvWarning;
+  
+  return ret;
 }
 
 DivDispatchOscBuffer* DivPlatformVB::getOscBuffer(int ch) {
@@ -530,6 +563,10 @@ void DivPlatformVB::reset() {
 
 int DivPlatformVB::getOutputCount() {
   return 2;
+}
+
+bool DivPlatformVB::hasSoftPan(int ch) {
+  return true;
 }
 
 bool DivPlatformVB::keyOffAffectsArp(int ch) {

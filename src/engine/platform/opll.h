@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -34,14 +34,12 @@ class DivPlatformOPLL: public DivDispatch {
       DivInstrumentFM state;
       unsigned char freqH, freqL;
       int fixedFreq;
-      bool furnaceDac;
       unsigned char pan;
       Channel():
         SharedChannel<int>(0),
         freqH(0),
         freqL(0),
         fixedFreq(0),
-        furnaceDac(false),
         pan(3) {}
     };
     Channel chan[11];

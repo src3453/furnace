@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -63,8 +63,8 @@ class DivPlatformK007232: public DivDispatch, public k007232_intf {
       val(v) {}
   };
   FixedQueue<QueuedWrite,256> writes;
-  unsigned int sampleOffK007232[256];
-  bool sampleLoaded[256];
+  unsigned int* sampleOffK007232;
+  bool* sampleLoaded;
 
   int delay;
   unsigned char lastLoop, lastVolume, oscDivider;
@@ -94,6 +94,7 @@ class DivPlatformK007232: public DivDispatch, public k007232_intf {
     void tick(bool sysTick=true);
     void muteChannel(int ch, bool mute);
     int getOutputCount();
+    bool hasSoftPan(int ch);
     bool hasAcquireDirect();
     void notifyInsChange(int ins);
     void notifyWaveChange(int wave);
@@ -110,10 +111,8 @@ class DivPlatformK007232: public DivDispatch, public k007232_intf {
     void renderSamples(int chipID);
     int init(DivEngine* parent, int channels, int sugRate, const DivConfig& flags);
     void quit();
-    DivPlatformK007232():
-      DivDispatch(),
-      k007232_intf(),
-      k007232(*this) {}
+    DivPlatformK007232();
+    ~DivPlatformK007232();
 };
 
 #endif

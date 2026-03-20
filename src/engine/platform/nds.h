@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -21,7 +21,11 @@
 #define _NDS_H
 
 #include "../dispatch.h"
+#ifdef ORIG_NDS_CORE
+#include "sound/nds_unopt.hpp"
+#else
 #include "sound/nds.hpp"
+#endif
 
 using namespace nds_sound_emu;
 
@@ -50,8 +54,8 @@ class DivPlatformNDS: public DivDispatch, public nds_sound_intf {
   bool isDSi;
   int globalVolume;
   int lastOut[2];
-  unsigned int sampleOff[256];
-  bool sampleLoaded[256];
+  unsigned int* sampleOff;
+  bool* sampleLoaded;
   struct QueuedWrite {
     unsigned short addr;
     unsigned char size;
@@ -73,8 +77,11 @@ class DivPlatformNDS: public DivDispatch, public nds_sound_intf {
     virtual u8 read_byte(u32 addr) override;
     virtual void write_byte(u32 addr, u8 data) override;
 
+#ifdef ORIG_NDS_CORE
+    virtual void acquire(short** buf, size_t len) override;
+#else
     virtual void acquireDirect(blip_buffer_t** bb, size_t len) override;
-    virtual void postProcess(short* buf, int outIndex, size_t len, int sampleRate) override;
+#endif
     virtual int dispatch(DivCommand c) override;
     virtual void* getChanState(int chan) override;
     virtual DivMacroInt* getChanMacroInt(int ch) override;
@@ -88,6 +95,7 @@ class DivPlatformNDS: public DivDispatch, public nds_sound_intf {
     virtual void muteChannel(int ch, bool mute) override;
     virtual float getPostAmp() override;
     virtual int getOutputCount() override;
+    virtual bool hasSoftPan(int ch) override;
     virtual bool hasAcquireDirect() override;
     virtual void notifyInsChange(int ins) override;
     virtual void notifyWaveChange(int wave) override;
@@ -104,10 +112,8 @@ class DivPlatformNDS: public DivDispatch, public nds_sound_intf {
     virtual void setFlags(const DivConfig& flags) override;
     virtual int init(DivEngine* parent, int channels, int sugRate, const DivConfig& flags) override;
     virtual void quit() override;
-    DivPlatformNDS():
-      DivDispatch(),
-      nds_sound_intf(),
-      nds(*this) {}
+    DivPlatformNDS();
+    ~DivPlatformNDS();
   private:
     void writeOutVol(int ch);
 };

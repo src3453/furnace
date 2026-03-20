@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,17 +25,18 @@
 class DivEngine;
 
 struct DivMacroStruct {
-  int pos, lastPos, lfoPos, delay;
+  int pos, lastPos, delay;
   int val;
-  bool has, had, actualHad, finished, will, linger, began, masked, activeRelease;
+  bool has, had, actualHad, finished, will, linger, began, masked, activeRelease, lfoDir;
   unsigned int mode, type;
   unsigned char macroType;
   void doMacro(DivInstrumentMacro& source, bool released, bool tick);
   void init() {
-    pos=lastPos=lfoPos=mode=type=delay=0;
+    pos=lastPos=mode=type=delay=0;
     has=had=actualHad=will=false;
     linger=false;
     began=true;
+    lfoDir=false;
     // TODO: test whether this breaks anything?
     val=0;
   }
@@ -43,7 +44,6 @@ struct DivMacroStruct {
   DivMacroStruct(unsigned char mType):
     pos(0),
     lastPos(0),
-    lfoPos(0),
     delay(0),
     val(0),
     has(false),
@@ -55,6 +55,7 @@ struct DivMacroStruct {
     began(true),
     masked(false),
     activeRelease(false),
+    lfoDir(false),
     mode(0),
     type(0),
     macroType(mType) {}

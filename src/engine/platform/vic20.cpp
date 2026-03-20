@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -247,9 +247,9 @@ int DivPlatformVIC20::dispatch(DivCommand c) {
       break;
     case DIV_CMD_PRE_PORTA:
       if (chan[c.chan].active && c.value2) {
-        if (parent->song.resetMacroOnPorta) chan[c.chan].macroInit(parent->getIns(chan[c.chan].ins,DIV_INS_VIC));
+        if (parent->song.compatFlags.resetMacroOnPorta) chan[c.chan].macroInit(parent->getIns(chan[c.chan].ins,DIV_INS_VIC));
       }
-      if (!chan[c.chan].inPorta && c.value && !parent->song.brokenPortaArp && chan[c.chan].std.arp.will && !NEW_ARP_STRAT) chan[c.chan].baseFreq=NOTE_PERIODIC(chan[c.chan].note);
+      if (!chan[c.chan].inPorta && c.value && !parent->song.compatFlags.brokenPortaArp && chan[c.chan].std.arp.will && !NEW_ARP_STRAT) chan[c.chan].baseFreq=NOTE_PERIODIC(chan[c.chan].note);
       chan[c.chan].inPorta=c.value;
       break;
     case DIV_CMD_GET_VOLMAX:
@@ -284,13 +284,13 @@ void DivPlatformVIC20::muteChannel(int ch, bool mute) {
 void DivPlatformVIC20::forceIns() {
   for (int i=0; i<4; i++) {
     chan[i].insChanged=true;
-    // I give up!
-    if (chan[i].onOff) {
+    if (chan[i].onOff && chan[i].active) {
       chan[i].freqChanged=true;
     } else {
       chan[i].freqChanged=false;
       chan[i].keyOff=true;
       chan[i].keyOn=false;
+      chan[i].waveWriteCycle=-1;
     }
     writeOutVol(i);
   }

@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,12 +27,10 @@
 class DivPlatformMSM6258: public DivDispatch {
   protected:
     struct Channel: public SharedChannel<int> {
-      bool furnacePCM;
       int sample;
       unsigned char pan;
       Channel():
         SharedChannel<int>(8),
-        furnacePCM(false),
         sample(-1),
         pan(3) {}
     };
@@ -48,7 +46,7 @@ class DivPlatformMSM6258: public DivDispatch {
     FixedQueue<QueuedWrite,256> writes;
     okim6258_device* msm;
 
-    unsigned char sampleBank, msmPan, msmDivider, rateSel, msmClock, clockSel;
+    unsigned char msmPan, msmDivider, rateSel, msmClock, clockSel;
     signed char msmDividerCount, msmClockCount;
     bool updateSampleFreq;
     bool variableRate;

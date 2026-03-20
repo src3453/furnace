@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -94,13 +94,13 @@ class DivPlatformSoundUnit: public DivDispatch {
   unsigned char ilCtrl, ilSize, fil1;
   unsigned char initIlCtrl, initIlSize, initFil1;
   signed char echoVol, initEchoVol;
-  unsigned int sampleOffSU[256];
-  bool sampleLoaded[256];
+  unsigned int* sampleOffSU;
+  bool* sampleLoaded;
 
   int cycles, curChan, delay, sysIDCache;
   short tempL;
   short tempR;
-  unsigned char sampleBank, lfoMode, lfoSpeed;
+  unsigned char lfoMode, lfoSpeed;
   SoundUnit* su;
   unsigned char* sampleMem;
   size_t sampleMemLen;
@@ -126,6 +126,7 @@ class DivPlatformSoundUnit: public DivDispatch {
     void tick(bool sysTick=true);
     void muteChannel(int ch, bool mute);
     int getOutputCount();
+    bool hasSoftPan(int ch);
     bool keyOffAffectsArp(int ch);
     void setFlags(const DivConfig& flags);
     void notifyInsDeletion(void* ins);
@@ -140,6 +141,7 @@ class DivPlatformSoundUnit: public DivDispatch {
     void renderSamples(int chipID);
     int init(DivEngine* parent, int channels, int sugRate, const DivConfig& flags);
     void quit();
+    DivPlatformSoundUnit();
     ~DivPlatformSoundUnit();
 };
 

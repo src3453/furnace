@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -107,6 +107,10 @@ bool DivDispatch::isVolGlobal() {
   return false;
 }
 
+bool DivDispatch::hasSoftPan(int ch) {
+  return false;
+}
+
 int DivDispatch::mapVelocity(int ch, float vel) {
   const int volMax=MAX(1,dispatch(DivCommand(DIV_CMD_GET_VOLMAX,MAX(ch,0))));
   return round(vel*volMax);
@@ -160,7 +164,15 @@ void DivDispatch::notifyInsChange(int ins) {
 
 }
 
-void DivDispatch::notifyWaveChange(int ins) {
+void DivDispatch::notifyWaveChange(int wave) {
+
+}
+
+void DivDispatch::notifySampleChange(int sample) {
+
+}
+
+void DivDispatch::notifyInsAddition(int sysID) {
 
 }
 
@@ -210,6 +222,14 @@ const char* DivDispatch::getSampleMemName(int index) {
 }
 
 size_t DivDispatch::getSampleMemUsage(int index) {
+  return 0;
+}
+
+bool DivDispatch::hasSamplePtrHeader(int index) {
+  return false;
+}
+
+size_t DivDispatch::getSampleMemOffset(int index) {
   return 0;
 }
 

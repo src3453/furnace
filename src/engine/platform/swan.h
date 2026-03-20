@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -41,8 +41,8 @@ class DivPlatformSwan: public DivDispatch {
   bool isMuted[4];
   bool stereo;
   bool useMdfn;
-  bool pcm, sweep, furnaceDac, setPos;
-  unsigned char sampleBank, noise;
+  bool pcm, sweep, setPos;
+  unsigned char noise;
   int dacPeriod, dacRate;
   unsigned int dacPos;
   int dacSample;
@@ -82,6 +82,7 @@ class DivPlatformSwan: public DivDispatch {
     void notifyWaveChange(int wave);
     void notifyInsDeletion(void* ins);
     int getOutputCount();
+    bool hasSoftPan(int ch);
     bool hasAcquireDirect();
     void setUseMdfn(bool use);
     void poke(unsigned int addr, unsigned short val);

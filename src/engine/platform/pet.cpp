@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -158,7 +158,7 @@ int DivPlatformPET::dispatch(DivCommand c) {
       chan[0].active=true;
       chan[0].keyOn=true;
       chan[0].macroInit(ins);
-      if (!parent->song.brokenOutVol && !chan[0].std.vol.will) {
+      if (!parent->song.compatFlags.brokenOutVol && !chan[0].std.vol.will) {
         chan[0].outVol=chan[0].vol;
       }
       break;
@@ -227,9 +227,9 @@ int DivPlatformPET::dispatch(DivCommand c) {
       break;
     case DIV_CMD_PRE_PORTA:
       if (chan[0].active && c.value2) {
-        if (parent->song.resetMacroOnPorta) chan[0].macroInit(parent->getIns(chan[0].ins,DIV_INS_PET));
+        if (parent->song.compatFlags.resetMacroOnPorta) chan[0].macroInit(parent->getIns(chan[0].ins,DIV_INS_PET));
       }
-      if (!chan[0].inPorta && c.value && !parent->song.brokenPortaArp && chan[0].std.arp.will && !NEW_ARP_STRAT) chan[0].baseFreq=NOTE_PERIODIC(chan[0].note);
+      if (!chan[0].inPorta && c.value && !parent->song.compatFlags.brokenPortaArp && chan[0].std.arp.will && !NEW_ARP_STRAT) chan[0].baseFreq=NOTE_PERIODIC(chan[0].note);
       chan[0].inPorta=c.value;
       break;
     case DIV_CMD_GET_VOLMAX:

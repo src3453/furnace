@@ -1,6 +1,6 @@
 /**
  * Furnace Tracker - multi-system chiptune tracker
- * Copyright (C) 2021-2025 tildearrow and contributors
+ * Copyright (C) 2021-2026 tildearrow and contributors
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -36,10 +36,9 @@ class DivOPLAInterface: public ymfm::ymfm_interface {
   public:
     unsigned char* adpcmBMem;
     unsigned char* pcmMem;
-    int sampleBank;
     uint8_t ymfm_external_read(ymfm::access_class type, uint32_t address);
     void ymfm_external_write(ymfm::access_class type, uint32_t address, uint8_t data);
-    DivOPLAInterface(): adpcmBMem(NULL), pcmMem(NULL), sampleBank(0) {}
+    DivOPLAInterface(): adpcmBMem(NULL), pcmMem(NULL) {}
 };
 
 class DivYMF278MemoryInterface: public MemoryInterface {
@@ -60,7 +59,7 @@ class DivPlatformOPL: public DivDispatch {
       DivInstrumentFM state;
       unsigned int freqH, freqL;
       int sample, fixedFreq;
-      bool furnacePCM, fourOp, hardReset, writeCtrl;
+      bool fourOp, hardReset, writeCtrl;
       bool levelDirect, damp, pseudoReverb, lfoReset, ch;
       int lfo, vib, am, ar, d1r, d2r, dl, rc, rr;
       int pan;
@@ -70,8 +69,7 @@ class DivPlatformOPL: public DivDispatch {
         freqH(0),
         freqL(0),
         sample(-1),
-        fixedFreq(0),
-        furnacePCM(false),
+        fixedFreq(-1),
         fourOp(false),
         hardReset(false),
         writeCtrl(false),
@@ -123,9 +121,9 @@ class DivPlatformOPL: public DivDispatch {
     size_t pcmMemLen;
     DivOPLAInterface iface;
     DivYMF278MemoryInterface pcmMemory;
-    unsigned int sampleOffB[256];
-    unsigned int sampleOffPCM[256];
-    bool sampleLoaded[256];
+    unsigned int* sampleOffB;
+    unsigned int* sampleOffPCM;
+    bool* sampleLoaded;
   
     ymfm::adpcm_b_engine* adpcmB;
     const unsigned char** slotsNonDrums;
@@ -134,8 +132,9 @@ class DivPlatformOPL: public DivDispatch {
     const unsigned short* chanMap;
     const unsigned char* outChanMap;
     int chipFreqBase, chipRateBase;
-    int delay, chipType, oplType, chans, melodicChans, totalChans, adpcmChan=-1, pcmChanOffs=-1, sampleBank, totalOutputs, ramSize;
-    int fmMixL=7, fmMixR=7, pcmMixL=7, pcmMixR=7;
+    int delay, chipType, oplType, chans, melodicChans, totalChans, adpcmChan=-1, pcmChanOffs=-1, totalOutputs, ramSize;
+    int fmMixL, fmMixR, pcmMixL, pcmMixR;
+    int fmMixLDef, fmMixRDef, pcmMixLDef, pcmMixRDef;
     unsigned char lastBusy;
     unsigned char drumState;
     unsigned char drumVol[5];
@@ -186,6 +185,8 @@ class DivPlatformOPL: public DivDispatch {
     void acquire_ymfm2(short** buf, size_t len);
     void acquire_ymfm1(short** buf, size_t len);
   
+    void renderInstruments();
+  
   public:
     void acquire(short** buf, size_t len);
     int dispatch(DivCommand c);
@@ -203,6 +204,7 @@ class DivPlatformOPL: public DivDispatch {
     void tick(bool sysTick=true);
     void muteChannel(int ch, bool mute);
     int getOutputCount();
+    bool hasSoftPan(int ch);
     void setCore(unsigned char which);
     void setOPLType(int type, bool drums);
     bool keyOffAffectsArp(int ch);
@@ -211,6 +213,7 @@ class DivPlatformOPL: public DivDispatch {
     void toggleRegisterDump(bool enable);
     void setFlags(const DivConfig& flags);
     void notifyInsChange(int ins);
+    void notifySampleChange(int sample);
     void notifyInsDeletion(void* ins);
     int getPortaFloor(int ch);
     void poke(unsigned int addr, unsigned short val);
@@ -218,14 +221,14 @@ class DivPlatformOPL: public DivDispatch {
     const void* getSampleMem(int index);
     size_t getSampleMemCapacity(int index);
     size_t getSampleMemUsage(int index);
+    bool hasSamplePtrHeader(int index=0);
+    size_t getSampleMemOffset(int index);
     bool isSampleLoaded(int index, int sample);
     const DivMemoryComposition* getMemCompo(int index);
     void renderSamples(int chipID);
     int init(DivEngine* parent, int channels, int sugRate, const DivConfig& flags);
     void quit();
-    DivPlatformOPL():
-      pcmMemory(0x400000),
-      pcm(pcmMemory) {}
+    DivPlatformOPL();
     ~DivPlatformOPL();
 };
 #endif
