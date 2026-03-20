@@ -12,18 +12,18 @@ std::vector<Byte> vram;
 
 // RAMおよびVRAMを管理する関数
 void ram_boot(std::vector<Byte>& ram, std::vector<Byte>& vram) {
-    ram.resize(CPT100_RAM_SIZE, Byte(0));
-    vram.resize(CPT100_VRAM_SIZE, Byte(0));
+    ram.resize(CPT100_RAM_SIZE, (Byte)0);
+    vram.resize(CPT100_VRAM_SIZE, (Byte)0);
 }
 
 Byte vram_peek(std::vector<Byte>& vram, int addr) {
     if (addr < 0) {
-        return Byte(0);
+        return (Byte)0;
     }
     if (addr < CPT100_VRAM_SIZE) {
         return vram.at(addr);
     }
-    return Byte(0);
+    return (Byte)0;
 }
 
 void vram_poke(std::vector<Byte>& vram, int addr, Byte val) {
@@ -54,12 +54,12 @@ void vram_poke2array(std::vector<Byte>& vram, int addr, std::vector<Byte>& vals)
 
 Byte ram_peek(std::vector<Byte>& ram, int addr) {
     if (addr < 0) {
-        return Byte(0);
+        return (Byte)0;
     }
     if (addr < CPT100_RAM_SIZE) {
         return ram.at(addr);
     }
-    return Byte(0);
+    return (Byte)0;
 }
 
 void ram_poke(std::vector<Byte>& ram, int addr, Byte val) {

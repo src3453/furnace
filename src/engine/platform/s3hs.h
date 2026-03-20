@@ -90,7 +90,7 @@ class DivPlatformS3HS: public DivDispatch {
    };
     unsigned char* getRegisterPool();
     void updateWave(int ch);
-    DivChannelModeHints DivPlatformS3HS::getModeHints(int ch);
+    DivChannelModeHints getModeHints(int ch);
     int getRegisterPoolSize();
     void acquire(short** buf, size_t len);
     void muteChannel(int ch, bool mute);

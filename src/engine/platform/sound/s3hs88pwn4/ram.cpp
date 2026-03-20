@@ -45,17 +45,17 @@ void vram_poke2array(std::vector<Byte>& vram, int addr, std::vector<Byte>& vals)
 } */
 
 void ram_boot(std::vector<Byte>& ram) {
-    ram.resize(S3HS_RAM_SIZE, Byte(0));
+    ram.resize(S3HS_RAM_SIZE, (Byte)0);
 }
 
 Byte ram_peek(std::vector<Byte>& ram, int addr) {
     if (addr < 0) {
-        return Byte(0);
+        return (Byte)0;
     }
     if (addr < S3HS_RAM_SIZE) {
         return ram.at(addr);
     }
-    return Byte(0);
+    return (Byte)0;
 }
 
 void ram_poke(std::vector<Byte>& ram, int addr, Byte val) {
