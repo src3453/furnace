@@ -92,7 +92,7 @@ void DivPlatformCPT100::tick(bool sysTick) {
       chan[i].handleArp();
     } else if (chan[i].std.arp.had) {
       if (!chan[i].inPorta) {
-        chan[i].baseFreq=NOTE_FREQUENCY(parent->calcArp(chan[i].note,chan[i].std.arp.val));
+        chan[i].baseFreq=chan[i].calcBaseFreq(parent->calcArp(chan[i].note,chan[i].std.arp.val));
       }
       chan[i].freqChanged=true;
     }
@@ -199,7 +199,7 @@ void DivPlatformCPT100::tick(bool sysTick) {
   }
 }
 
-void* DivPlatformCPT100::getChanState(int ch) {
+SharedChannel* DivPlatformCPT100::getChanState(int ch) {
   return &chan[ch];
 }
 
@@ -227,12 +227,12 @@ int DivPlatformCPT100::dispatch(DivCommand c) {
       if (chan[c.chan].pcm) {
         if (c.value!=DIV_NOTE_NULL) {
           chan[c.chan].sample=ins->amiga.getSample(c.value);
-          chan[c.chan].baseFreq=NOTE_FREQUENCY(c.value);
+          chan[c.chan].baseFreq=chan[c.chan].calcBaseFreq(c.value);
           chan[c.chan].freqChanged=true;
         }
       } else {
         if (c.value!=DIV_NOTE_NULL) {
-          chan[c.chan].baseFreq=NOTE_FREQUENCY(c.value);
+          chan[c.chan].baseFreq=chan[c.chan].calcBaseFreq(c.value);
           chan[c.chan].freqChanged=true;
         }
       }
@@ -313,7 +313,7 @@ int DivPlatformCPT100::dispatch(DivCommand c) {
       chan[c.chan].freqChanged=true;
       break;
     case DIV_CMD_NOTE_PORTA: {
-      int destFreq=NOTE_FREQUENCY(c.value2);
+      int destFreq=chan[c.chan].calcBaseFreq(c.value2);
       bool return2=false;
       if (destFreq>chan[c.chan].baseFreq) {
         chan[c.chan].baseFreq+=c.value;
@@ -333,7 +333,7 @@ int DivPlatformCPT100::dispatch(DivCommand c) {
       break;
     }
     case DIV_CMD_LEGATO:
-      chan[c.chan].baseFreq=NOTE_FREQUENCY(c.value);
+      chan[c.chan].baseFreq=chan[c.chan].calcBaseFreq(c.value);
       chan[c.chan].freqChanged=true;
       break;
     case DIV_CMD_GET_VOLMAX:
@@ -450,6 +450,7 @@ void DivPlatformCPT100::reset() {
   cpt->initSound();
   for (int i=0; i<chans; i++) {
     chan[i]=DivPlatformCPT100::Channel();
+    chan[i].pitchTable=&pitchTable;
     chan[i].vol=0xff;
     chan[i].std.setEngine(parent);
     chan[i].ws.setEngine(parent);
@@ -475,6 +476,7 @@ int DivPlatformCPT100::init(DivEngine* p, int channels, int sugRate, const DivCo
   memset(sampleMem,0,sampleMemSize); 
   rate=48000;
   chipClock=48000;
+  pitchTable.init(parent->song.tuning,chipClock,CHIP_FREQBASE,0xffff,false,parent->song.compatFlags.linearPitch);
   chans=channels;
   cpt = new Cpt100_sound();
   memset(regPool,0,208);

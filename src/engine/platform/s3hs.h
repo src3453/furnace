@@ -3,7 +3,7 @@
 #include "../dispatch.h"
 
 class DivPlatformS3HS: public DivDispatch {
-  struct Channel : public SharedChannel<int> {
+  struct Channel : public SharedChannel {
     int freq, baseFreq, pitch;
     int wave, sample;
     unsigned short pos;
@@ -33,7 +33,7 @@ class DivPlatformS3HS: public DivDispatch {
     bool feedbackoverride;
     DivWaveSynth ws;
     Channel(): 
-      SharedChannel<int>(0),
+      SharedChannel(0,true),
       freq(0), 
       baseFreq(0), 
       pitch(0), 
@@ -64,6 +64,7 @@ class DivPlatformS3HS: public DivDispatch {
   int EQmid;
   int EQhi;
   S3HS_sound* cpt;
+  DivPitchTable pitchTable;
   unsigned char regPool[1024];
   DivMemoryComposition memCompo;
   Channel chan[12];
@@ -97,7 +98,7 @@ class DivPlatformS3HS: public DivDispatch {
     int dispatch(DivCommand c);
     int NewFunction(DivCommand &c);
     DivMacroInt *getChanMacroInt(int ch);
-    void *getChanState(int chan);
+      SharedChannel* getChanState(int chan);
     DivDispatchOscBuffer* getOscBuffer(int chan);
     void notifyWaveChange(int wave);
     void notifyInsDeletion(void* ins);

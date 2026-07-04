@@ -3,7 +3,7 @@
 #include "../dispatch.h"
 
 class DivPlatformCPT100: public DivDispatch {
-  struct Channel : public SharedChannel<int> {
+  struct Channel : public SharedChannel {
     int freq, baseFreq, pitch;
     int wave, sample;
     unsigned short pos;
@@ -18,7 +18,7 @@ class DivPlatformCPT100: public DivDispatch {
     int hasOffset;
     DivWaveSynth ws;
     Channel(): 
-      SharedChannel<int>(0),
+      SharedChannel(0,true),
       freq(0), 
       baseFreq(0), 
       pitch(0), 
@@ -39,6 +39,7 @@ class DivPlatformCPT100: public DivDispatch {
       hasOffset(0){}
   };
   Cpt100_sound* cpt;
+  DivPitchTable pitchTable;
   unsigned char regPool[208];
   DivMemoryComposition memCompo;
   Channel chan[6];
@@ -68,7 +69,7 @@ class DivPlatformCPT100: public DivDispatch {
     void muteChannel(int ch, bool mute);
     int dispatch(DivCommand c);
     DivMacroInt* getChanMacroInt(int ch);
-    void* getChanState(int chan);
+    SharedChannel* getChanState(int chan);
     DivDispatchOscBuffer* getOscBuffer(int chan);
     void notifyWaveChange(int wave);
     void notifyInsDeletion(void* ins);

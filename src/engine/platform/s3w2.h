@@ -3,7 +3,7 @@
 #include "../dispatch.h"
   
 class DivPlatformS3W2: public DivDispatch {
-  struct Channel: public SharedChannel<signed char> {
+  struct Channel: public SharedChannel {
     bool freqInit;
     bool pcm;
     signed short wave;
@@ -13,7 +13,7 @@ class DivPlatformS3W2: public DivDispatch {
     bool pcmLoop;
     DivWaveSynth ws;
     Channel():
-      SharedChannel<signed char>(15),
+      SharedChannel(15,true),
       freqInit(false),
       pcm(false),
       sample(-1),
@@ -35,6 +35,7 @@ class DivPlatformS3W2: public DivDispatch {
   size_t sampleMemLen;
   unsigned int sampleOffSU[256];
   S3W2_Sound* chip;
+  DivPitchTable pitchTable;
   unsigned char regPool[0x900]; // 0x000-0x8FF
   void updateWave(int ch);
   friend void putDispatchChip(void*,int);
@@ -42,7 +43,7 @@ class DivPlatformS3W2: public DivDispatch {
   public:
     void acquire(short** buf, size_t len);
     int dispatch(DivCommand c);
-    void* getChanState(int chan);
+    SharedChannel* getChanState(int chan);
     DivMacroInt* getChanMacroInt(int ch);
     DivDispatchOscBuffer* getOscBuffer(int chan);
     unsigned char* getRegisterPool();

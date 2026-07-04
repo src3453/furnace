@@ -92,7 +92,7 @@ void DivPlatform3FS44U::tick(bool sysTick) {
       chan[i].handleArp();
     } else if (chan[i].std.arp.had) {
       if (!chan[i].inPorta) {
-        chan[i].baseFreq=NOTE_FREQUENCY(parent->calcArp(chan[i].note,chan[i].std.arp.val));
+        chan[i].baseFreq=chan[i].calcBaseFreq(parent->calcArp(chan[i].note,chan[i].std.arp.val));
       }
       chan[i].freqChanged=true;
     }
@@ -199,7 +199,7 @@ void DivPlatform3FS44U::tick(bool sysTick) {
   }
 }
 
-void* DivPlatform3FS44U::getChanState(int ch) {
+SharedChannel* DivPlatform3FS44U::getChanState(int ch) {
   return &chan[ch];
 }
 
@@ -227,12 +227,12 @@ int DivPlatform3FS44U::dispatch(DivCommand c) {
       if (chan[c.chan].pcm) {
         if (c.value!=DIV_NOTE_NULL) {
           chan[c.chan].sample=ins->amiga.getSample(c.value);
-          chan[c.chan].baseFreq=NOTE_FREQUENCY(c.value);
+          chan[c.chan].baseFreq=chan[c.chan].calcBaseFreq(c.value);
           chan[c.chan].freqChanged=true;
         }
       } else {
         if (c.value!=DIV_NOTE_NULL) {
-          chan[c.chan].baseFreq=NOTE_FREQUENCY(c.value);
+          chan[c.chan].baseFreq=chan[c.chan].calcBaseFreq(c.value);
           chan[c.chan].freqChanged=true;
         }
       }
@@ -313,7 +313,7 @@ int DivPlatform3FS44U::dispatch(DivCommand c) {
       chan[c.chan].freqChanged=true;
       break;
     case DIV_CMD_NOTE_PORTA: {
-      int destFreq=NOTE_FREQUENCY(c.value2);
+      int destFreq=chan[c.chan].calcBaseFreq(c.value2);
       bool return2=false;
       if (destFreq>chan[c.chan].baseFreq) {
         chan[c.chan].baseFreq+=c.value;
@@ -333,7 +333,7 @@ int DivPlatform3FS44U::dispatch(DivCommand c) {
       break;
     }
     case DIV_CMD_LEGATO:
-      chan[c.chan].baseFreq=NOTE_FREQUENCY(c.value);
+      chan[c.chan].baseFreq=chan[c.chan].calcBaseFreq(c.value);
       chan[c.chan].freqChanged=true;
       break;
     case DIV_CMD_GET_VOLMAX:
