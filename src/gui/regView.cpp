@@ -17,17 +17,41 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#include "../engine/bsr.h"
 #include "gui.h"
+#include "IconsFontAwesome4.h"
 #include <imgui.h>
 
 void FurnaceGUI::drawRegView() {
   if (nextWindow==GUI_WINDOW_REGISTER_VIEW) {
-    channelsOpen=true;
+    regViewOpen=true;
     ImGui::SetNextWindowFocus();
     nextWindow=GUI_WINDOW_NOTHING;
   }
   if (!regViewOpen) return;
   if (ImGui::Begin("Register View",&regViewOpen,globalWinFlags,_("Register View"))) {
+    ImVec2 prevPos=ImGui::GetCursorPos();
+    ImVec2 topPos=ImGui::GetCursorPos();
+    topPos.x+=ImGui::GetContentRegionAvail().x-ImGui::CalcTextSize(ICON_FA_BARS).x;
+    topPos.y+=ImGui::GetScrollY();
+    if (ImGui::IsWindowHovered()) {
+      ImGui::SetCursorPos(topPos);
+      ImGui::TextUnformatted(ICON_FA_BARS "##regViewSettings");
+      if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayShort)) {
+        ImGui::SetTooltip(_("Register View settings"));
+      }
+      if (ImGui::IsItemClicked()) {
+        ImGui::OpenPopup("regViewSettingsPopup");
+      }
+      ImGui::SetCursorPos(prevPos);
+    }
+    if (ImGui::BeginPopup("regViewSettingsPopup")) {
+      if (ImGui::InputInt(_("Bytes per column##RegViewColumns"),&regViewColumns,1,4)) {
+        if (regViewColumns<1) regViewColumns=1;
+        if (regViewColumns>64) regViewColumns=64;
+      }
+      ImGui::EndPopup();
+    }
     for (int i=0; i<e->song.systemLen; i++) {
       ImGui::Text("%d. %s",i+1,getSystemName(e->song.system[i]));
       int size=0;
@@ -38,65 +62,35 @@ void FurnaceGUI::drawRegView() {
         ImGui::Text(_("- no register pool available"));
       } else {
         ImGui::PushFont(patFont);
-        if (depth==16) {
-          if (ImGui::BeginTable("Memory",9)) {
-            float widthOne=ImGui::CalcTextSize("0").x;
-            if (size>0xfff) {
-              ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed,widthOne*4.0f);
-            } else if (size>0xff) {
-              ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed,widthOne*3.0f);
-            } else {
-              ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed,widthOne*2.0f);
-            }
+        int bytesPerValue=MAX(1,depth/8);
+        int columns=MAX(1,regViewColumns/bytesPerValue);
+        if (ImGui::BeginTable("Memory",1+columns)) {
+          String addrFmt=fmt::sprintf("%X",MAX(size-1,0));
+          float widthOne=MAX(ImGui::CalcTextSize(addrFmt.c_str()).x,ImGui::CalcTextSize(bytesPerValue==2?"0000":"00").x);
+          ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed,widthOne);
 
+          ImGui::TableNextRow();
+          ImGui::TableNextColumn();
+          for (int j=0; j<columns; j++) {
+            ImGui::TableNextColumn();
+            ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",j);
+          }
+          for (int row=0; row<size; row+=columns) {
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
-            for (int j=0; j<8; j++) {
+            ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX],"%.2X",row);
+            for (int col=0; col<columns; col++) {
               ImGui::TableNextColumn();
-              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",j);
-            }
-
-            int rows=(size+7)>>3;
-            for (int row=0; row<rows; row++) {
-              ImGui::TableNextRow();
-              ImGui::TableNextColumn();
-              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX],"%.2X",row*8);
-              for (int col=0; col<8; col++) {
-                int idx=row*8+col;
-                ImGui::TableNextColumn();
-                if (idx>=size) continue;
-                ImGui::Text("%.4x",regPoolW[idx]);
+              if (row+col>=size) continue;
+              switch (depth) {
+                case 8: ImGui::Text("%.2x",regPool[row+col]); break;
+                case 16: ImGui::Text("%.4x",regPoolW[row+col]); break;
+                default: ImGui::Text("??"); break;
               }
             }
-
-            ImGui::EndTable();
           }
-        } else {
-          if (ImGui::BeginTable("Memory",17)) {
-            ImGui::TableSetupColumn("addr",ImGuiTableColumnFlags_WidthFixed);
 
-            ImGui::TableNextRow();
-            ImGui::TableNextColumn();
-            for (int j=0; j<16; j++) {
-              ImGui::TableNextColumn();
-              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX]," %X",j);
-            }
-
-            int rows=(size+15)>>4;
-            for (int row=0; row<rows; row++) {
-              ImGui::TableNextRow();
-              ImGui::TableNextColumn();
-              ImGui::TextColored(uiColors[GUI_COLOR_PATTERN_ROW_INDEX],"%.2X",row*16);
-              for (int col=0; col<16; col++) {
-                int idx=row*16+col;
-                ImGui::TableNextColumn();
-                if (idx>=size) continue;
-                ImGui::Text("%.2x",regPool[idx]);
-              }
-            }
-
-            ImGui::EndTable();
-          }
+          ImGui::EndTable();
         }
         ImGui::PopFont();
       }
