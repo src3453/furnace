@@ -44,6 +44,7 @@ void S3W2_Sound::resetChannel(int ch)
     c.modulation_param_1 = 0;
     c.modulation_param_2 = 0;
     c.modulation_target = 0;
+    c.modulation_targeting_mode = 0;
     c.pcm_start_addr = 0;
     c.pcm_end_addr = 0;
     c.pcm_loop_addr = 0;
@@ -163,13 +164,14 @@ int16_t S3W2_Sound::generateWavetableSample(int ch)
     uint8_t index = 0;
     int16_t phase_offset = 0;
     uint64_t phase = static_cast<uint64_t>(c.phase*256) & 0xFFFFFFFFFFFFFFFF;
+    uint8_t abs_target_ch = convertToAbsoluteChannelAddress(static_cast<uint8_t>(ch), c.modulation_targeting_mode, c.modulation_target);
     switch (c.modulation_type)
     {
     case MOD_NONE:
         index = static_cast<uint8_t>(phase & 0xFF);
         break;
     case MOD_PHASE:
-        phase_offset = static_cast<int16_t>((c.modulation_param_1 * channels[c.modulation_target].last_sample) >> 12);
+        phase_offset = static_cast<int16_t>((c.modulation_param_1 * channels[abs_target_ch].last_sample) >> 12);
         index = static_cast<uint8_t>((phase + phase_offset) & 0xFF);
         break;
     default:
@@ -177,6 +179,26 @@ int16_t S3W2_Sound::generateWavetableSample(int ch)
         break;
     }
     uint8_t sample8 = c.wavetable[index];
+    if (c.modulation_type == MOD_RING)
+    {
+        int16_t mod_sample = channels[abs_target_ch].last_sample;
+        sample8 = static_cast<uint8_t>(((static_cast<int>(sample8) - 128) * (mod_sample + 32768) / 65536) + 128);
+    }
+    else if (c.modulation_type == MOD_HARD_SYNC)
+    {
+        if (channels[abs_target_ch].phase < 1.0)
+        {
+            c.phase = 0.0; // reset phase
+            index = 0;
+            sample8 = c.wavetable[index];
+        }
+    }
+    else if (c.modulation_type == MOD_WINDOW)
+    {
+        int16_t mod_sample = channels[abs_target_ch].last_sample;
+        if (mod_sample < 0)
+            sample8 = 128; // silence
+    }
     int16_t out = static_cast<int16_t>((static_cast<int>(sample8) - 128));
     return out;
 }
@@ -192,9 +214,10 @@ int16_t S3W2_Sound::generatePCMSample(int ch)
     if (!pcm_ram)
         return 0;
     uint64_t phase = static_cast<uint64_t>(c.phase*256) & 0xFFFFFFFFFFFFFFFF;
+    uint8_t abs_target_ch = convertToAbsoluteChannelAddress(static_cast<uint8_t>(ch), c.modulation_targeting_mode, c.modulation_target);
     if (c.modulation_type == MOD_PHASE)
     {
-        int16_t phase_offset = static_cast<int16_t>((c.modulation_param_1 * channels[c.modulation_target].last_sample) >> 12);
+        int16_t phase_offset = static_cast<int16_t>((c.modulation_param_1 * channels[abs_target_ch].last_sample) >> 12);
         phase = (phase + phase_offset) & 0xFFFFFFFFFFFFFFFF;
     }
     uint32_t addr = (phase+c.pcm_start_addr) & (PCM_RAM_SIZE - 1);
@@ -392,6 +415,10 @@ void S3W2_Sound::writeChannelControl(int ch, uint8_t offset, uint8_t value)
         c.phase = 0.0;
         c.lfsr_state = 0x12D4803C;
     }
+    else if (offset == 0x0B)
+    {
+        c.modulation_targeting_mode = value & 0x01;
+    }
 }
 
 uint8_t S3W2_Sound::readChannelWavetable(int ch, uint8_t offset)
@@ -477,6 +504,10 @@ uint8_t S3W2_Sound::readChannelControl(int ch, uint8_t offset)
         c.phase = 0.0;
         return 0;
     }
+    else if (offset == 0x0B)
+    {
+        return c.modulation_targeting_mode & 0x01;
+    }
     return 0;
 }
 
@@ -493,4 +524,28 @@ void S3W2_Sound::setAddress20bit(uint32_t &target, uint32_t reg_addr, uint8_t va
     (void)reg_addr;
     (void)value;
     (void)target;
+}
+
+// Convert modulation target to absolute channel address
+uint8_t S3W2_Sound::convertToAbsoluteChannelAddress(uint8_t carrier_channel, uint8_t modulation_targeting_mode, uint8_t modulation_target)
+{
+    if (modulation_targeting_mode == 0)
+    {
+        // absolute addressing
+        return modulation_target & 0x07;
+    }
+    else if (modulation_targeting_mode == 1)
+    {
+        // relative addressing
+        int8_t relative_offset = static_cast<int8_t>(modulation_target & 0x07);
+        if (relative_offset >= 4)
+            relative_offset -= 8; // convert to signed 3-bit
+        int absolute_channel = static_cast<int>(carrier_channel) + relative_offset;
+        if (absolute_channel < 0)
+            absolute_channel += NUM_CHANNELS;
+        else if (absolute_channel >= NUM_CHANNELS)
+            absolute_channel -= NUM_CHANNELS;
+        absolute_channel &= 0x07; // ensure within 0-7 (wraps around)
+        return static_cast<uint8_t>(absolute_channel);
+    }
 }

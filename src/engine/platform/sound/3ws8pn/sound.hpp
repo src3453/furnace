@@ -65,6 +65,7 @@ struct Channel {
     uint8_t panpot;              // パンポット (上位4bit:L, 下位4bit:R)
     uint8_t modulation_type;     // 変調タイプ
     uint8_t modulation_target;   // 変調ターゲットチャンネル (0~7, 3bit)
+    uint8_t modulation_targeting_mode; // 変調ターゲットチャンネルの選択モード (0: 絶対アドレス、 1: 相対アドレス (3bit signed, -4~+3))
     uint16_t modulation_param_1;   // 変調パラメータ1
     uint16_t modulation_param_2;   // 変調パラメータ2
     
@@ -131,6 +132,7 @@ private:
     uint8_t readChannelControl(int ch, uint8_t offset);
     
     // ユーティリティ
+    uint8_t convertToAbsoluteChannelAddress(uint8_t carrier_channel, uint8_t modulation_targeting_mode, uint8_t modulation_target);
     uint32_t extractAddress20bit(uint32_t reg_addr);
     void setAddress20bit(uint32_t& target, uint32_t reg_addr, uint8_t value);
 };
