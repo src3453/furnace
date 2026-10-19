@@ -28,19 +28,22 @@ class DivSGUBWriter {
   uint32_t frames=0, initialCount=0;
   unsigned samples=0, frameOps=0;
   bool started=false, repeat;
+  uint8_t version=2;
   static void be16(std::vector<uint8_t>& v, uint16_t n) { v.push_back(n>>8); v.push_back(n); }
   static void be24(std::vector<uint8_t>& v, unsigned n) { v.push_back(n>>16); v.push_back(n>>8); v.push_back(n); }
   static void be32(std::vector<uint8_t>& v, uint32_t n) { v.push_back(n>>24); v.push_back(n>>16); v.push_back(n>>8); v.push_back(n); }
+  void appendAddress(std::vector<uint8_t>& v, unsigned n) { if (version==3) be32(v,n); else be24(v,n); }
   void room(size_t extra) const {
     if (40+pools.size()*16+payloads.size()+initialOps.size()+frameData.size()+frame.size()+extra+2>limit)
       throw std::runtime_error("SGUB exceeds the 14 MiB limit");
   }
-  static void targetAddress(unsigned target, unsigned addr, size_t length=1) {
-    if (target>2 || !length || addr>(target==2?0xfffff:0x8ff) || length-1>(target==2?0xfffff:0x8ff)-addr)
+  void targetAddress(unsigned target, unsigned addr, size_t length=1) const {
+    const uint64_t max=target==2?0xfffffu:target==3?0x1ffffffu:0x8ffu;
+    if (target>3 || !length || (version==2 && target==3) || addr>max || length-1>max-addr)
       throw std::runtime_error("Invalid SGUB register address");
   }
-  static void appendWrite(std::vector<uint8_t>& out, unsigned target, unsigned addr, unsigned value) {
-    targetAddress(target,addr); out.push_back(0); out.push_back(target); be24(out,addr); out.push_back(value);
+  void appendWrite(std::vector<uint8_t>& out, unsigned target, unsigned addr, unsigned value) {
+    targetAddress(target,addr); out.push_back(0); out.push_back(target); appendAddress(out,addr); out.push_back(value);
   }
   void appendInitial(const std::vector<uint8_t>& op) {
     if (started) throw std::runtime_error("SGUB initialization after playback began");
@@ -56,9 +59,11 @@ class DivSGUBWriter {
   }
 public:
   explicit DivSGUBWriter(bool doRepeat=false): repeat(doRepeat) {}
+  void setVersion(uint8_t v) { if (v!=2 && v!=3) throw std::runtime_error("Unsupported SGUB version"); version=v; }
   void reserve(size_t n) { if (n>limit) throw std::runtime_error("SGUB exceeds the 14 MiB limit"); bytes.reserve(n); }
   uint16_t addPool(uint8_t type, const uint8_t* data, size_t size) {
-    if ((type==1 && size!=256) || (type==2 && (!size || size>0x100000)) || type<1 || type>2)
+    if ((type==1 && size!=256) || (type==2 && (!size || size>0x100000)) ||
+        (type==3 && (version!=3 || !size || size>0x400000)) || type<1 || type>3)
       throw std::runtime_error("Invalid SGUB pool payload");
     if (pools.size()>=65536) throw std::runtime_error("Too many SGUB pool entries");
     room(size); uint16_t id=(uint16_t)pools.size();
@@ -71,7 +76,8 @@ public:
   void initialFill(unsigned target, unsigned addr, uint32_t length, unsigned value) {
     targetAddress(target,addr,length);
     if (target<2 && (addr>=0x800 || length>0x800-addr)) throw std::runtime_error("Invalid SGUB wave fill");
-    std::vector<uint8_t> op{1,(uint8_t)target}; be24(op,addr); be32(op,length); op.push_back(value); appendInitial(op);
+    if (target==3 && (version!=3 || addr>0x400000 || length>0x400000-addr)) throw std::runtime_error("Invalid SGUB S3HS RAM fill");
+    std::vector<uint8_t> op{1,(uint8_t)target}; appendAddress(op,addr); be32(op,length); op.push_back(value); appendInitial(op);
   }
   void initialCopy(unsigned target, unsigned addr, uint16_t pool, uint32_t source, uint32_t length) {
     if (pool>=pools.size() || !length || source>pools[pool].data.size() || length>pools[pool].data.size()-source)
@@ -79,7 +85,8 @@ public:
     targetAddress(target,addr,length);
     if (pools[pool].type==1 && (target==2 || addr>=0x800 || length>0x800-addr || (addr&255) || (source&255) || (length&255))) throw std::runtime_error("Invalid SGUB wave copy");
     if (pools[pool].type==2 && target!=2) throw std::runtime_error("Invalid SGUB PCM copy");
-    std::vector<uint8_t> op{2,(uint8_t)target}; be24(op,addr); be16(op,pool); be32(op,source); be32(op,length); appendInitial(op);
+    if (pools[pool].type==3 && (target!=3 || addr>0x400000 || length>0x400000-addr)) throw std::runtime_error("Invalid SGUB S3HS RAM copy");
+    std::vector<uint8_t> op{2,(uint8_t)target}; appendAddress(op,addr); be16(op,pool); be32(op,source); be32(op,length); appendInitial(op);
   }
   void write(unsigned target, unsigned addr, unsigned value) {
     std::vector<uint8_t> op; appendWrite(op,target,addr,value); appendFrame(op);
@@ -90,7 +97,8 @@ public:
     targetAddress(target,addr,length);
     if (pools[pool].type==1 && (target==2 || addr>=0x800 || length>0x800-addr || (addr&255) || (source&255) || (length&255))) throw std::runtime_error("Invalid SGUB wave copy");
     if (pools[pool].type==2 && target!=2) throw std::runtime_error("Invalid SGUB PCM copy");
-    std::vector<uint8_t> op{2,target}; be24(op,addr); be16(op,pool); be32(op,source); be32(op,length); appendFrame(op);
+    if (pools[pool].type==3 && (target!=3 || addr>0x400000 || length>0x400000-addr)) throw std::runtime_error("Invalid SGUB S3HS RAM copy");
+    std::vector<uint8_t> op{2,target}; appendAddress(op,addr); be16(op,pool); be32(op,source); be32(op,length); appendFrame(op);
   }
   void wait(unsigned n) {
     started=true;
@@ -100,7 +108,7 @@ public:
   const std::vector<uint8_t>& finish() {
     if (samples || frameOps || !frames) flush();
     bytes.clear(); bytes.reserve(40+pools.size()*16+payloads.size()+initialOps.size()+frameData.size());
-    bytes.insert(bytes.end(),{'S','G','U','B',2,16,(uint8_t)repeat,0});
+    bytes.insert(bytes.end(),{'S','G','U','B',version,16,(uint8_t)repeat,0});
     be32(bytes,frames); be32(bytes,(uint32_t)pools.size()); be32(bytes,initialCount);
     uint32_t directory=40, payloadStart=directory+(uint32_t)pools.size()*16;
     uint32_t initStart=payloadStart+(uint32_t)payloads.size();

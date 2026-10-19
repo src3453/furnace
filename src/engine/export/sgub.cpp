@@ -27,9 +27,11 @@
 
 void DivExportSGUB::run() {
   try {
-    if (!e->isROMExportViable(DIV_ROM_SGUB)) throw std::runtime_error("SGUB requires one or two S3W2 chips and no other systems");
+    if (!e->isROMExportViable(DIV_ROM_SGUB)) throw std::runtime_error("SGUB requires one S3HS chip or one/two S3W2 chips and no other systems");
+    const bool s3hs=e->song.systemLen==1 && e->song.system[0]==DIV_SYSTEM_S3HS;
     DivSGUBWriter stream(conf.getBool("loop",false));
-    stream.reserve(0x100000*5+0x10000);
+    if (s3hs) stream.setVersion(3);
+    stream.reserve(s3hs?0x500000:0x100000*5+0x10000);
     e->stop();
     e->setOrder(0);
     e->synchronizedSoft([&]() {
@@ -59,6 +61,39 @@ void DivExportSGUB::run() {
         e->playing=false;
         e->remainingLoops=-1;
         e->playSub(false);
+        if (s3hs) {
+          auto* dispatch=e->disCont[0].dispatch;
+          const auto* signedPCM=static_cast<const int8_t*>(dispatch->getSampleMem(0));
+          const size_t pcmSize=dispatch->getSampleMemUsage(0);
+          if (!signedPCM || pcmSize>0x400000) throw std::runtime_error("Invalid S3HS PCM RAM image");
+          if (pcmSize) {
+            std::vector<uint8_t> pcm(pcmSize);
+            for (size_t i=0;i<pcmSize;i++) pcm[i]=(uint8_t)(signedPCM[i]+128);
+            const uint16_t pool=stream.addPool(3,pcm.data(),pcm.size());
+            stream.initialCopy(3,0,pool,0,(uint32_t)pcmSize);
+          }
+          dispatch->getRegisterWrites().clear();
+          dispatch->toggleRegisterDump(true);
+          logAppend("Recording S3HS writes at 48 kHz; quantizing to 60 Hz SGUB v3 frames.");
+          e->calcSongTimestamps();
+          const uint64_t totalTicks=std::max<uint64_t>(1,e->curSubSong->ts.totalTicks);
+          uint64_t recordedTicks=0;
+          while (true) {
+            if (mustAbort) throw std::runtime_error("SGUB export cancelled");
+            if (e->nextTick(false,true) || !e->playing) break;
+            recordedTicks++;
+            auto& writes=dispatch->getRegisterWrites();
+            for (const auto& write:writes) {
+              if (write.addr>=0x400) throw std::runtime_error("Invalid S3HS register write address");
+              stream.write(3,write.addr,(unsigned)write.val&255);
+            }
+            writes.clear();
+            if (e->cycles>0) stream.wait(e->cycles);
+            progress=0.2f+0.75f*std::min(1.0f,(float)recordedTicks/(float)totalTicks);
+          }
+          cleanup();
+          return;
+        }
         const uint8_t* pcm[2]={nullptr,nullptr};
         size_t used[2]={0,0};
         for (int i=0; i<e->song.systemLen; i++) {

@@ -138,11 +138,15 @@ the following systems are also supported when saving as 1.1.3+:
 
 only use this option if you really need it. there are many features which DefleMask does not support, such as a variety of effects, FM macros and pitched samples, so these will be lost.
 
-## CPT32 SGUB (S3W2)
+## CPT32 SGUB (S3W2 / S3HS)
 
-With a song containing only one or two **3WS8PN (S3W2)** chips, choose
-**File > Export > ROM**, then **CPT32 SGUB (S3W2)**. Save as `.sgub`.
-The first chip maps to SGU0 and the second to SGU1; a single-chip song silences SGU1.
+With a song containing only one or two **3WS8PN (S3W2)** chips, or one
+**3HS88PWN4 (S3HS)** system, choose **File > Export > ROM**, then
+**CPT32 SGUB (S3W2 / S3HS)**. Save as `.sgub`. S3HS output uses SGUB v3 and
+requires one **3WS88PWN4 WASM expansion card in slot 0**. The SGUB format
+reserves targets for all eight expansion slots, while this exporter currently
+supports only slot 0.
+For S3W2, the first chip maps to SGU0 and the second to SGU1; a single-chip song silences SGU1. For S3HS, PCM RAM is copied to the card and register writes target slot 0.
 This exports the selected subsong from order zero through its first end/loop.
 
 Command line:
@@ -155,12 +159,12 @@ furnace -romconf loop=true -romout song.sgub song.fur
 Playback uses the CPT32 emulator's `--music-stream song.sgub` option together
 with a guest program, or the guest `sgu_music_driver.sol`. SGUB is music data;
 it does not include a bootable program or a driver binary.
-The Rust reference reader and current CPT32 guest Sol player support both SGUB
-v1 and v2. Rebuild the current guest driver with `solc.py compile -O speed`; old
+The Rust reference reader and current CPT32 guest C player support SGUB v1, v2
+and v3. Rebuild the current guest driver with the SDK; old
 driver binaries or source copies written by earlier Music Editor builds must
 be updated. The SGUB file itself does not need to be exported again.
 
-- SGUB v2 runs at **60 VSync frames/second**. The exporter accumulates Furnace
+- SGUB v2/v3 runs at **60 VSync frames/second**. The exporter accumulates Furnace
   timing at 48 kHz and places each write in its containing 1/60-second frame.
   Multiple ticks in one frame retain their write order, including phase-reset
   strobes, but have no audible time between them. Sub-frame effects therefore

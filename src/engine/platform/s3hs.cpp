@@ -7,7 +7,7 @@
 #include <chrono>
 
 #define CHIP_FREQBASE 48000
-#define rWrite(a,v) if (!skipRegisterWrites) {if(a>=0x400000 && a<0x400400) {doWrite(a,v); regPool[((a-0x400000)%0x400)]=v;} if (dumpWrites && false) {addWrite(a,v);} }
+#define rWrite(a,v) if (!skipRegisterWrites) {if(a>=0x400000 && a<0x400400) {doWrite(a,v); regPool[((a-0x400000)%0x400)]=v;} if (dumpWrites) {addWrite(a-0x400000,v);} }
 #define rRead(a) cpt->ram_peek(cpt->ram,(int)a);
 
 unsigned int s3hs_chanaddrs_freq[12] = {0x400000,0x400040,0x400080,0x4000c0,0x400100,0x400140,0x400180,0x4001c0,0x400200,0x400230,0x400260,0x400290};

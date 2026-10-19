@@ -486,7 +486,7 @@ void FurnaceGUI::drawExportROM(bool onWindow) {
       if (ImGui::Checkbox(_("repeat entire song"),&repeat)) {
         romConfig.set("loop",repeat);
       }
-      ImGui::TextWrapped("%s",_("SGUB v2 repeats from the beginning, including the intro; internal loop points are not stored. Waveforms and PCM data are stored in pools."));
+      ImGui::TextWrapped("%s",_("SGUB repeats from the beginning, including the intro; internal loop points are not stored. S3W2 exports use v2 pools; S3HS uses v3 and requires one 3WS88PWN4 card in slot 0."));
       break;
     }
     case DIV_ROM_GRUB: {

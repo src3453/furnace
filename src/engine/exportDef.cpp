@@ -33,6 +33,7 @@ bool DivEngine::isROMExportViable(DivROMExportOptions opt)
   }
 
   if (opt==DIV_ROM_SGUB) {
+    if (song.systemLen==1 && song.system[0]==DIV_SYSTEM_S3HS) return true;
     if (song.systemLen<1 || song.systemLen>2) return false;
     for (int i=0; i<song.systemLen; i++) {
       if (song.system[i]!=DIV_SYSTEM_S3W2) return false;
@@ -141,12 +142,12 @@ void DivEngine::registerROMExports() {
   );
 
   romExportDefs[DIV_ROM_SGUB]=new DivROMExportDef(
-    "CPT32 SGUB (S3W2)", "CPT32 contributors",
-    "SGUB v2 pooled stream for CPT32. One or two S3W2 chips only.\n"
-    "Fixed 60 Hz playback; sub-frame writes are quantized.\n"
-    "PCM banks are packed into the shared 1 MiB RAM.",
+    "CPT32 SGUB (S3W2 / S3HS)", "CPT32 contributors",
+    "SGUB pooled stream for CPT32. One S3HS expansion card or one/two S3W2 chips.\n"
+    "S3HS playback requires a 3WS88PWN4 card in expansion slot 0.\n"
+    "Fixed 60 Hz playback; sub-frame writes are quantized.",
     "SGUB music stream", ".sgub",
-    {DIV_SYSTEM_S3W2}, false, DIV_REQPOL_EXACT
+    {DIV_SYSTEM_S3W2, DIV_SYSTEM_S3HS}, false, DIV_REQPOL_ANY
   );
 
   romExportDefs[DIV_ROM_GRUB]=new DivROMExportDef(
