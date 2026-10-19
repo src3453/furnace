@@ -50,6 +50,7 @@ void S3W2_Sound::resetChannel(int ch)
     c.pcm_loop_addr = 0;
     c.pcm_control = 0;
     c.phase = 0.0;
+    c.sqv4_ready = false;
     c.last_sample = 0;
     c.lfsr_state = 0x12D4803C;
     c.active = true;
@@ -141,6 +142,9 @@ int16_t S3W2_Sound::generateSample(int ch)
     case WAVEFORM_NOISE:
         sample = generateNoiseSample(ch);
         break;
+    case WAVEFORM_SQV4:
+        sample = generateSQV4Sample(ch);
+        break;
     case WAVEFORM_DMA_PCM:
         sample = generateDMAPCMSample(ch);
         break;
@@ -149,7 +153,7 @@ int16_t S3W2_Sound::generateSample(int ch)
         break;
     }
     c.last_sample = sample;
-    return sample * c.volume / 4;
+    return c.waveform_type==WAVEFORM_SQV4?sample*c.volume/(255*4):sample*c.volume/4;
 }
 
 int16_t S3W2_Sound::generateWavetableSample(int ch)
@@ -201,6 +205,44 @@ int16_t S3W2_Sound::generateWavetableSample(int ch)
     }
     int16_t out = static_cast<int16_t>((static_cast<int>(sample8) - 128));
     return out;
+}
+
+int16_t S3W2_Sound::generateSQV4Sample(int ch)
+{
+    Channel& c=channels[ch];
+    if (!c.sqv4_ready) {
+        uint32_t start=c.pcm_start_addr, end=c.pcm_end_addr, loop=c.pcm_loop_addr;
+        if (start>=end || end>PCM_RAM_SIZE ||
+            !sqv4::inspect(pcm_ram->data()+start,end-start,c.sqv4_header) ||
+            c.sqv4_header.channels!=1 || !c.sqv4_header.samples) {
+            c.active=false; return 0;
+        }
+        c.sqv4_loop=0;
+        if (loop && loop!=start) {
+            if (loop<start+16 || loop>=end || (loop-start-16)%c.sqv4_header.stride()) {
+                c.active=false; return 0;
+            }
+            c.sqv4_loop=((loop-start-16)/c.sqv4_header.stride())*64;
+        }
+        c.sqv4_state=sqv4::State(); c.sqv4_next=0; c.sqv4_ready=true;
+    }
+    uint64_t target=static_cast<uint64_t>(c.phase*256);
+    if (target>=c.sqv4_header.samples) {
+        if (!(c.pcm_control&2)) { c.active=false; return 0; }
+        target=c.sqv4_loop+(target-c.sqv4_loop)%(c.sqv4_header.samples-c.sqv4_loop);
+        c.phase=(target+(c.phase*256-std::floor(c.phase*256)))/256.0;
+    }
+    // Replay predictor history on loop/seek; fragments have no independent state.
+    if (target+1<c.sqv4_next) { c.sqv4_state=sqv4::State(); c.sqv4_next=0; }
+    while (c.sqv4_next<=target) {
+        uint32_t index=c.sqv4_next++;
+        const uint8_t* f=pcm_ram->data()+c.pcm_start_addr+16+(index/64)*c.sqv4_header.stride();
+        c.sqv4_sample=sqv4::decodeCode(c.sqv4_header,c.sqv4_state,
+            sqv4::codeAt(f+1,index%64,c.sqv4_header.bits()))*f[0]/255;
+    }
+    int16_t sample=c.sqv4_sample;
+    c.phase+=static_cast<double>(c.frequency)/SOUND_CLOCK/8;
+    return sample;
 }
 
 int16_t S3W2_Sound::generatePCMSample(int ch)
@@ -316,6 +358,7 @@ void S3W2_Sound::writeChannelPCMReg(int ch, uint8_t offset, uint8_t value)
     if (ch < 0 || ch >= NUM_CHANNELS)
         return;
     Channel &c = channels[ch];
+    if (offset<=8 || (offset==9 && !(c.pcm_control&1) && (value&1))) c.sqv4_ready=false;
     // offset mapping: 0-2 start addr, 3-5 end, 6-8 loop, 9 control
     if (offset <= 2)
     {
@@ -360,6 +403,7 @@ void S3W2_Sound::writePCMRAM(uint32_t address, uint8_t value)
     if (address >= PCM_RAM_SIZE)
         return;
     (*pcm_ram)[address] = value;
+    for (auto& c: channels) c.sqv4_ready=false;
 }
 
 uint8_t S3W2_Sound::readPCMRAM(uint32_t address)
@@ -387,6 +431,7 @@ void S3W2_Sound::writeChannelControl(int ch, uint8_t offset, uint8_t value)
     }
     else if (offset == 2)
     {
+        if (c.waveform_type!=value) c.sqv4_ready=false;
         c.waveform_type = value;
     }
     else if (offset == 3)
@@ -413,6 +458,7 @@ void S3W2_Sound::writeChannelControl(int ch, uint8_t offset, uint8_t value)
     {
         // access resets phase
         c.phase = 0.0;
+        c.sqv4_ready = false;
         c.lfsr_state = 0x12D4803C;
     }
     else if (offset == 0x0B)
@@ -502,6 +548,7 @@ uint8_t S3W2_Sound::readChannelControl(int ch, uint8_t offset)
     {
         // access resets phase
         c.phase = 0.0;
+        c.sqv4_ready = false;
         return 0;
     }
     else if (offset == 0x0B)

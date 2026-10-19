@@ -18,6 +18,7 @@
  */
 
 #include "sample.h"
+#include "sqv4.h"
 #include "../ta-log.h"
 #include "../fileutils.h"
 #include <math.h>
@@ -183,6 +184,11 @@ DivDataErrors DivSample::readSampleData(SafeReader& reader, short version) {
   if (version>=58) { // modern sample
     if (init(samples)) {
       reader.read(getCurBuf(),getCurBufLen());
+      if (depth==DIV_SAMPLE_DEPTH_SQV4L || depth==DIV_SAMPLE_DEPTH_SQV4L_PLUS) {
+        sqv4::Header h;
+        if (!sqv4::inspect((const uint8_t*)getCurBuf(),getCurBufLen(),h) || h.channels!=1 ||
+            h.samples!=samples || h.variant!=(depth==DIV_SAMPLE_DEPTH_SQV4L?1u:2u)) return DIV_DATA_INVALID_HEADER;
+      }
     }
 #ifdef TA_BIG_ENDIAN
     // convert 16-bit samples to big-endian
@@ -250,6 +256,9 @@ bool DivSample::isLoopable() {
 }
 
 int DivSample::getSampleOffset(int offset, int length, DivSampleDepth depth) {
+  if (depth==DIV_SAMPLE_DEPTH_SQV4L || depth==DIV_SAMPLE_DEPTH_SQV4L_PLUS) {
+    return (length>0 && offset==length)?sqv4::fileSize(length,1,1):16+(std::max(0,offset)/64)*25;
+  }
   if ((length==0) || (offset==length)) {
     int off=offset;
     switch (depth) {
@@ -427,6 +436,12 @@ int DivSample::getEndPosition(DivSampleDepth depth) {
     case DIV_SAMPLE_DEPTH_C219:
       off=lengthC219;
       break;
+    case DIV_SAMPLE_DEPTH_SQV4L:
+      off=lengthSQV4L;
+      break;
+    case DIV_SAMPLE_DEPTH_SQV4L_PLUS:
+      off=lengthSQV4LPlus;
+      break;
     case DIV_SAMPLE_DEPTH_IMA_ADPCM:
       off=lengthIMA;
       break;
@@ -531,6 +546,15 @@ bool DivSample::saveRaw(const char* path) {
     logE("could not save sample: %s!",strerror(errno));
     return false;
   }
+  const char* ext=strrchr(path,'.');
+  String extName=ext?ext:"";
+  for (char& c: extName) if (c>='A' && c<='Z') c+='a'-'A';
+  if (extName==".sqv" || extName==".sqv4") {
+    auto bytes=getSQV4();
+    bool ok=!bytes.empty() && fwrite(bytes.data(),1,bytes.size(),f)==bytes.size();
+    if (fclose(f)!=0) ok=false;
+    return ok;
+  }
   if (depth==DIV_SAMPLE_DEPTH_BRR) {
     if (isLoopable()) {
       unsigned short loopPos=getLoopStartPosition(DIV_SAMPLE_DEPTH_BRR);
@@ -631,6 +655,17 @@ bool DivSample::initInternal(DivSampleDepth d, int count) {
       dataC219=new unsigned char[(count+4095)&(~0xfff)];
       memset(dataC219,0,(count+4095)&(~0xfff));
       break;
+    case DIV_SAMPLE_DEPTH_SQV4L:
+    case DIV_SAMPLE_DEPTH_SQV4L_PLUS: {
+      unsigned char*& data=(d==DIV_SAMPLE_DEPTH_SQV4L)?dataSQV4L:dataSQV4LPlus;
+      unsigned int& length=(d==DIV_SAMPLE_DEPTH_SQV4L)?lengthSQV4L:lengthSQV4LPlus;
+      delete[] data;
+      length=sqv4::fileSize(count,1,1);
+      data=new unsigned char[length]();
+      memcpy(data,"SQV4",4); data[4]=2; data[5]=(d==DIV_SAMPLE_DEPTH_SQV4L)?1:2; data[6]=1;
+      sqv4::write32(data+8,centerRate>0?centerRate:8363); sqv4::write32(data+12,count);
+      break;
+    }
     case DIV_SAMPLE_DEPTH_IMA_ADPCM: // IMA ADPCM
       if (dataIMA!=NULL) delete[] dataIMA;
       lengthIMA=4+((count+1)/2);
@@ -1342,8 +1377,16 @@ void DivSample::render(unsigned int formatMask) {
           if (dataC219[i]&0x80) data16[i]=-data16[i];
         }
         break;
+      case DIV_SAMPLE_DEPTH_SQV4L:
+      case DIV_SAMPLE_DEPTH_SQV4L_PLUS: {
+        std::vector<int16_t> decoded;
+        sqv4::Header h;
+        if (sqv4::decode((const uint8_t*)getCurBuf(),getCurBufLen(),decoded,h) && h.channels==1 && h.samples==samples)
+          std::copy(decoded.begin(),decoded.end(),data16);
+        break;
+      }
       case DIV_SAMPLE_DEPTH_IMA_ADPCM: // IMA ADPCM
-        if (adpcm_decode_block(data16,dataIMA,lengthIMA,samples)==0) logE("oh crap!");
+        if (samples && adpcm_decode_block(data16,dataIMA,lengthIMA,samples)==0) logE("oh crap!");
         break;
       case DIV_SAMPLE_DEPTH_12BIT: // 12-bit PCM (MultiPCM)
         for (unsigned int i=0, j=0; i<samples; i+=2, j+=3) {
@@ -1538,6 +1581,13 @@ void DivSample::render(unsigned int formatMask) {
       dataC219[i]=x|(negate?0x80:0);
     }
   }
+  for (DivSampleDepth d: {DIV_SAMPLE_DEPTH_SQV4L,DIV_SAMPLE_DEPTH_SQV4L_PLUS}) {
+    if (NOT_IN_FORMAT(d)) {
+      if (!initInternal(d,samples)) return;
+      auto encoded=sqv4::encode(data16,samples,centerRate>0?centerRate:8363,d==DIV_SAMPLE_DEPTH_SQV4L?1:2);
+      memcpy(d==DIV_SAMPLE_DEPTH_SQV4L?dataSQV4L:dataSQV4LPlus,encoded.data(),encoded.size());
+    }
+  }
   if (NOT_IN_FORMAT(DIV_SAMPLE_DEPTH_IMA_ADPCM)) { // IMA ADPCM
     if (!initInternal(DIV_SAMPLE_DEPTH_IMA_ADPCM,samples)) return;
     int delta[2];
@@ -1583,6 +1633,24 @@ void DivSample::render(unsigned int formatMask) {
   }
 }
 
+std::vector<unsigned char> DivSample::getSQV4(unsigned int count) {
+  count=std::min(count,samples);
+  if (depth==DIV_SAMPLE_DEPTH_SQV4L || depth==DIV_SAMPLE_DEPTH_SQV4L_PLUS) {
+    const uint8_t* data=(const uint8_t*)getCurBuf();
+    sqv4::Header h;
+    if (!sqv4::inspect(data,getCurBufLen(),h) || h.channels!=1 || h.samples!=samples) return {};
+    std::vector<uint8_t> out(data,data+sqv4::fileSize(count,1,h.variant));
+    sqv4::write32(out.data()+8,centerRate>0?centerRate:8363);
+    sqv4::write32(out.data()+12,count);
+    if (count%64) {
+      uint8_t* last=out.data()+out.size()-h.stride()+1;
+      for (unsigned bit=(count%64)*h.bits();bit<64*h.bits();bit++) last[bit/8]&=~(1<<(bit%8));
+    }
+    return out;
+  }
+  return sqv4::encode(data16,count,centerRate>0?centerRate:8363,0);
+}
+
 void* DivSample::getCurBuf() {
   switch (depth) {
     case DIV_SAMPLE_DEPTH_1BIT:
@@ -1609,6 +1677,10 @@ void* DivSample::getCurBuf() {
       return dataMuLaw;
     case DIV_SAMPLE_DEPTH_C219:
       return dataC219;
+    case DIV_SAMPLE_DEPTH_SQV4L:
+      return dataSQV4L;
+    case DIV_SAMPLE_DEPTH_SQV4L_PLUS:
+      return dataSQV4LPlus;
     case DIV_SAMPLE_DEPTH_IMA_ADPCM:
       return dataIMA;
     case DIV_SAMPLE_DEPTH_12BIT:
@@ -1649,6 +1721,10 @@ unsigned int DivSample::getCurBufLen() {
       return lengthMuLaw;
     case DIV_SAMPLE_DEPTH_C219:
       return lengthC219;
+    case DIV_SAMPLE_DEPTH_SQV4L:
+      return lengthSQV4L;
+    case DIV_SAMPLE_DEPTH_SQV4L_PLUS:
+      return lengthSQV4LPlus;
     case DIV_SAMPLE_DEPTH_IMA_ADPCM:
       return lengthIMA;
     case DIV_SAMPLE_DEPTH_12BIT:
@@ -1768,6 +1844,8 @@ DivSample::~DivSample() {
   if (dataMuLaw) delete[] dataMuLaw;
   if (dataC219) delete[] dataC219;
   if (dataIMA) delete[] dataIMA;
+  delete[] dataSQV4L;
+  delete[] dataSQV4LPlus;
   if (data12) delete[] data12;
   if (data4) delete[] data4;
 }

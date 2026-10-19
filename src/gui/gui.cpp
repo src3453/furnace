@@ -2265,7 +2265,7 @@ void FurnaceGUI::openFileDialog(FurnaceGUIFileDialogs type) {
       if (!dirExists(workingDirSample)) workingDirSample=getHomeDir();
       hasOpened=fileDialog->openSave(
         _("Save Raw Sample"),
-        {_("all files"), "*"},
+        {_("all files"), "*", _("SqueezVOX 4"), "*.sqv *.sqv4"},
         workingDirSample,
         dpiScale,
         (settings.autoFillSave)?e->getSample(curSample)->name:""
@@ -7508,7 +7508,7 @@ bool FurnaceGUI::loop() {
     if (ImGui::BeginPopupModal(_("Import Raw Sample"),NULL,ImGuiWindowFlags_AlwaysAutoResize)) {
       ImGui::Text(_("Data type:"));
       for (int i=0; i<DIV_SAMPLE_DEPTH_MAX; i++) {
-        if (sampleDepths[i]==NULL) continue;
+        if (sampleDepths[i]==NULL || i==DIV_SAMPLE_DEPTH_SQV4L || i==DIV_SAMPLE_DEPTH_SQV4L_PLUS) continue;
        if (ImGui::RadioButton(sampleDepths[i],pendingRawSampleDepth==i)) pendingRawSampleDepth=i;
       }
 
@@ -8601,7 +8601,7 @@ bool FurnaceGUI::init() {
 #endif
 
   compatFormats+="*.dmc ";
-  compatFormats+="*.brr ";
+  compatFormats+="*.brr *.sqv *.sqv4 ";
 
   compatFormats+="*.ppc ";
   compatFormats+="*.pps ";
@@ -8617,6 +8617,9 @@ bool FurnaceGUI::init() {
 
   audioLoadFormats.push_back(_("SNES Bit Rate Reduction"));
   audioLoadFormats.push_back("*.brr");
+
+  audioLoadFormats.push_back(_("SqueezVOX 4"));
+  audioLoadFormats.push_back("*.sqv *.sqv4");
 
   audioLoadFormats.push_back(_("PMD YM2608 ADPCM-B sample bank"));
   audioLoadFormats.push_back("*.ppc");

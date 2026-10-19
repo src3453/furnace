@@ -1,4 +1,5 @@
 #include <array>
+#include "../../../sqv4.h"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -23,7 +24,7 @@ Registers (all bytes are in big endian):
  - +0x09: PCM Playing Control (bit0: Play/Stop, bit1: Loop On/Off, bit2~7: Reserved)
 0x800-0x8FF: Channel Control Registers (8 channels x 32 bytes)
  - +0x00~0x01: Frequency (in Hertz, 16bit, in PCM Mode: Sample Rate (32x Frequency (ex. 64hz -> 0x0002)))
- - +0x02: Waveform Type (0: Wavetable, 1: PCM, 2: Noise, 3: DMA PCM (16bit), 4~: Reserved)
+ - +0x02: Waveform Type (0: Wavetable, 1: PCM, 2: Noise, 3: DMA PCM (16bit), 4: SQV4, 5~: Reserved)
  - +0x03: Volume (0~255)
  - +0x04: Panpot (MSB: Left 4bit, LSB: Right 4bit)
  - +0x05: Waveform Modulation Type (MSB 5bit: Type, LSB 3bit: Target Channel (0~7))
@@ -44,7 +45,8 @@ enum WaveformType {
     WAVEFORM_WAVETABLE = 0,
     WAVEFORM_PCM = 1,
     WAVEFORM_NOISE = 2,
-    WAVEFORM_DMA_PCM = 3
+    WAVEFORM_DMA_PCM = 3,
+    WAVEFORM_SQV4 = 4
 };
 
 // 変調タイプ
@@ -75,6 +77,12 @@ struct Channel {
     uint32_t pcm_loop_addr;      // PCMループアドレス (20bit)
     uint8_t pcm_control;         // PCM制御レジスタ
     
+    sqv4::Header sqv4_header;
+    sqv4::State sqv4_state;
+    uint32_t sqv4_next=0, sqv4_loop=0;
+    int16_t sqv4_sample=0;
+    bool sqv4_ready=false;
+
     // 内部状態
     uint64_t old_phase;
     uint32_t lfsr_state;         // ノイズ用LFSR状態
@@ -120,6 +128,7 @@ private:
     int16_t generatePCMSample(int ch);
     int16_t generateNoiseSample(int ch);
     int16_t generateDMAPCMSample(int ch);
+    int16_t generateSQV4Sample(int ch);
     int16_t applyModulation(int ch, int16_t& sample);
     void mixChannels(int16_t* left, int16_t* right);
     

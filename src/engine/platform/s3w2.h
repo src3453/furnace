@@ -34,6 +34,8 @@ class DivPlatformS3W2: public DivDispatch {
   unsigned char* sampleMem;
   size_t sampleMemLen;
   unsigned int sampleOffSU[256];
+  unsigned int sampleLenSU[256];
+  bool sampleSQV4[256];
   S3W2_Sound* chip;
   DivPitchTable pitchTable;
   unsigned char regPool[0x900]; // 0x000-0x8FF

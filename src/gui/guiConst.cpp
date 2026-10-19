@@ -236,7 +236,9 @@ const char* sampleDepths[DIV_SAMPLE_DEPTH_MAX]={
   "IMA ADPCM",
   "12-bit PCM",
   "4-bit PCM",
-  "16-bit PCM"
+  "16-bit PCM",
+  "SQV4L",
+  "SQV4L+"
 };
 
 const char* resampleStrats[]={

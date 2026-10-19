@@ -127,7 +127,7 @@ void DivPlatformS3W2::tick(bool sysTick) {
     {
       if (chan[i].pcm) {
         // PCM mode
-        rWrite(addrbase+0x02,1); // +0x02: Waveform Type (PCM)
+        rWrite(addrbase+0x02,(chan[i].sample>=0 && chan[i].sample<256 && sampleSQV4[chan[i].sample])?4:1); // PCM / SQV4
       } else
       // Wavetable/Noise mode
       rWrite(addrbase+0x02,chan[i].std.duty.val==1?2:0); // +0x02: Waveform Type (Wave/Noise)
@@ -163,29 +163,30 @@ void DivPlatformS3W2::tick(bool sysTick) {
       if (chan[i].pcm) {
           int sNum=chan[i].sample;
           DivSample* sample=parent->getSample(sNum);
-          if (sample!=NULL && sNum>=0 && sNum<parent->song.sampleLen) {
-            unsigned int sampleEnd=sampleOffSU[sNum]+(sample->getLoopEndPosition());
-            unsigned int off=sampleOffSU[sNum]+chan[i].pcmOffset;
+          if (sample!=NULL && sNum>=0 && sNum<256 && sNum<parent->song.sampleLen && sampleLoaded[sNum]) {
+            bool compressed=sampleSQV4[sNum];
+            unsigned int off=sampleOffSU[sNum];
+            unsigned int end=off+sampleLenSU[sNum];
+            if (!compressed) off+=std::min((unsigned int)std::max(0,chan[i].pcmOffset),sampleLenSU[sNum]);
+            // SQV4 starts at its header. PCM offsets cannot seek into compressed bytes.
             chan[i].hasOffset=0;
-            if (sampleEnd>=getSampleMemCapacity(0)) sampleEnd=getSampleMemCapacity(0)-1;
-            rWrite24(i*0x100+0, off); // +0x00~0x02: PCM Start Address
-            rWrite24(i*0x100+3, sampleEnd); // +0x03~0x05: PCM End Address
-            rWrite24(i*0x100+6, 0x000000); // +0x06~0x08: PCM Loop Address (0x000000 = no loop)
-            rWrite(i*0x100+9,0b01); // +0x09: PCM Playing Control (bit0: Play/Stop, bit1: Loop On/Off, bit2~7: Reserved)
+            rWrite(addrbase+0x19,0);
+            rWrite(addrbase+0x02,compressed?4:1);
+            rWrite24(addrbase+0x10,off);
+            rWrite24(addrbase+0x13,end);
+            unsigned int loop=compressed?sampleOffSU[sNum]:0;
             if (sample->isLoopable()) {
-              unsigned int sampleLoop=sampleOffSU[sNum]+sample->getLoopStartPosition();
-              unsigned int sampleLoopEnd=sampleOffSU[sNum]+sample->getLoopEndPosition();
-              if (sampleLoop>=getSampleMemCapacity(0)) sampleLoop=getSampleMemCapacity(0)-1;
-              rWrite24(i*0x100+6, sampleLoop); // +0x06~0x08: PCM Loop Address
-              rWrite24(i*0x100+3, sampleLoopEnd); // +0x03~0x05: PCM End Address
-              rWrite(i*0x100+9,0b11); // +0x09: PCM Playing Control (bit0: Play/Stop, bit1: Loop On/Off, bit2~7: Reserved)
-              chan[i].pcmLoop=true;
-            } else {
-              rWrite(i*0x100+9,0b01); // +0x09: PCM Playing Control (bit0: Play/Stop, bit1: Loop On/Off, bit2~7: Reserved)
-              chan[i].pcmLoop=false;
+              loop=sampleOffSU[sNum]+(compressed?
+                (sample->loopStart==0?0:16+(sample->loopStart/64)*(sample->depth==DIV_SAMPLE_DEPTH_IMA_ADPCM?33:25)):
+                sample->loopStart);
             }
+            rWrite24(addrbase+0x16,loop);
+            rWrite(addrbase+0x0A,0);
+            rWrite(addrbase+0x19,sample->isLoopable()?3:1);
+            chan[i].pcmLoop=sample->isLoopable();
+          } else {
+            rWrite(addrbase+0x19,0);
           }
-          rWrite(regBase+i*0x20+0x02,1); // +0x02: Waveform Type (PCM)
         }
     }
     if (isMuted[i]) {
@@ -439,37 +440,30 @@ void DivPlatformS3W2::renderSamples(int sysID) {
   memset(sampleMem,0,sampleMemSize);
   memset(sampleOffSU,0,256*sizeof(unsigned int));
   memset(sampleLoaded,0,256*sizeof(bool));
+  memset(sampleLenSU,0,sizeof(sampleLenSU));
+  memset(sampleSQV4,0,sizeof(sampleSQV4));
 
   memCompo=DivMemoryComposition();
   memCompo.name="Sample RAM";
 
   size_t memPos=0;
-  for (int i=0; i<parent->song.sampleLen; i++) {
+  for (int i=0; i<parent->song.sampleLen && i<256; i++) {
     DivSample* s=parent->song.sample[i];
-    if (s->data8==NULL) {
+    sampleSQV4[i]=s->depth==DIV_SAMPLE_DEPTH_IMA_ADPCM || s->depth==DIV_SAMPLE_DEPTH_SQV4L || s->depth==DIV_SAMPLE_DEPTH_SQV4L_PLUS;
+    if (!s->renderOn[0][sysID]) continue;
+    unsigned count=s->isLoopable()?s->loopEnd:s->samples;
+    auto encoded=sampleSQV4[i]?s->getSQV4(count):std::vector<unsigned char>();
+    const unsigned char* data=sampleSQV4[i]?encoded.data():(unsigned char*)s->data8;
+    size_t len=sampleSQV4[i]?encoded.size():count;
+    // End is a 20-bit exclusive pointer. Keep the last byte as the PCM end guard.
+    if (!data || !len || memPos+len>=getSampleMemCapacity(0)) {
+      logW("sample %d is empty or does not fit S3W2 RAM",i);
       continue;
-    };
-    if (!s->renderOn[0][sysID]) {
-      sampleOffSU[i]=0;
-      continue;
     }
-    
-    int len=s->getLoopEndPosition(DIV_SAMPLE_DEPTH_8BIT);
-    if (len == -1) {
-      len=s->getEndPosition(DIV_SAMPLE_DEPTH_8BIT);
-    }
-    int paddedLen=MIN((int)(getSampleMemCapacity(0)-memPos),len);
-    if (memPos>=getSampleMemCapacity(0)) {
-      logW("out of PCM memory for sample %d!",i);
-      break;
-    }
-    if (memPos+paddedLen>=getSampleMemCapacity(0)) {
-      memcpy(sampleMem+memPos,s->data8,getSampleMemCapacity(0)-memPos-1);
-      logW("out of PCM memory for sample %d!",i);
-    } else {
-      memcpy(sampleMem+memPos,s->data8,paddedLen);
-      sampleLoaded[i]=true;
-    }
+    int paddedLen=len;
+    for (size_t j=0;j<len;j++) sampleMem[memPos+j]=data[j]^(sampleSQV4[i]?0x80:0);
+    sampleLenSU[i]=len;
+    sampleLoaded[i]=true;
     sampleOffSU[i]=memPos;
     memCompo.entries.push_back(DivMemoryEntry(DIV_MEMORY_SAMPLE,"Sample",i,memPos,memPos+paddedLen));
     memPos+=paddedLen;
@@ -527,6 +521,9 @@ int DivPlatformS3W2::init(DivEngine* p, int channels, int sugRate, const DivConf
   sampleMem=new unsigned char[sampleMemSize];
   memset(sampleMem,0,sampleMemSize); 
   sampleMemLen=0;
+  memset(sampleLoaded,0,sizeof(sampleLoaded));
+  memset(sampleSQV4,0,sizeof(sampleSQV4));
+  memset(sampleLenSU,0,sizeof(sampleLenSU));
   chip = new S3W2_Sound;
   reset();
   return 8;

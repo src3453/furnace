@@ -2738,7 +2738,7 @@ void DivEngine::registerSystems() {
   
   sysDefs[DIV_SYSTEM_S3W2]=new DivSysDef(
     _("3WS8PN (S3W2)"), NULL, 0xfa, 0, 8, 8, 8,
-    false, true, 0, false, 1U<<DIV_SAMPLE_DEPTH_8BIT, 256, 256,
+    false, true, 0, false, (1U<<DIV_SAMPLE_DEPTH_8BIT)|(1U<<DIV_SAMPLE_DEPTH_IMA_ADPCM)|(1U<<DIV_SAMPLE_DEPTH_SQV4L)|(1U<<DIV_SAMPLE_DEPTH_SQV4L_PLUS), 256, 256,
     _("src3453's (yet) another fantasy sound chip. It is an amalgamation of FDS, X1-010 and AY, which has some spirits of 3HS88PWN4 and CPT100."),
     DivChanDefFunc({
       DivChanDef(_("Channel 1"), "CH1", DIV_CH_WAVE, DIV_INS_S3W2, DIV_INS_AMIGA),
