@@ -880,7 +880,8 @@ bool DivInstrumentS3HS::operator==(const DivInstrumentS3HS& other) {
     _C(op8s) && 
     _C(op8r) && 
     _C(mode) && 
-    _C(fb)       
+    _C(fb) &&
+    _C(fbDest)
   );
 }
 
@@ -1809,6 +1810,7 @@ void DivInstrument::writeFeature3H(SafeWriter* w) {
   w->writeC(s3hs.op8r);
   w->writeC(s3hs.mode);
   w->writeC(s3hs.fb);
+  w->writeC(s3hs.fbDest);
   FEATURE_END;
 }
 
@@ -3537,6 +3539,7 @@ void DivInstrument::readFeature3H(SafeReader& reader, short version) {
   s3hs.op8r=reader.readC();
   s3hs.mode=reader.readC();
   s3hs.fb=reader.readC();
+  if (reader.tell()<endOfFeat) s3hs.fbDest=reader.readC();
   READ_FEAT_END;
 }
 

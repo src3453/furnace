@@ -1090,7 +1090,10 @@ int main(int argc, char** argv) {
       for (char& i: lowerCase) {
         if (i>='A' && i<='Z') i+='a'-'A';
       }
+      // An explicit SGUB filename must never fall back to a different format.
+      const bool wantsSGUB=lowerCase.size()>=5 && lowerCase.substr(lowerCase.size()-5)==".sgub";
       for (int i=0; i<DIV_ROM_MAX; i++) {
+        if (wantsSGUB && i!=DIV_ROM_SGUB) continue;
         DivROMExportOptions opt = (DivROMExportOptions)i;
         if (e.isROMExportViable(opt)) {
           const DivROMExportDef* newDef=e.getROMExportDef((DivROMExportOptions)i);

@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.16)
+project(sgub_check LANGUAGES CXX)
+add_executable(sgub_check writer.cpp)
+target_compile_features(sgub_check PRIVATE cxx_std_14)
+enable_testing()
+add_test(NAME sgub_writer COMMAND sgub_check)

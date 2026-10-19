@@ -117,6 +117,7 @@ class DivPlatformS3HS: public DivDispatch {
     bool isSampleLoaded(int index, int sample);
     void renderSamples(int chipID);
     void doWrite(unsigned int addr, unsigned char data);
+    void writeOpVolumes(int channel, int channelVolume, int mode, int* opVolumes);
     void setFlags(const DivConfig& flags);
     ~DivPlatformS3HS();
 };

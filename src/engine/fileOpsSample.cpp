@@ -18,6 +18,7 @@
  */
 
 #include "engine.h"
+#include "sqv4.h"
 #include "../ta-log.h"
 #include "../fileutils.h"
 #ifdef HAVE_SNDFILE
@@ -59,6 +60,40 @@ std::vector<DivSample*> DivEngine::sampleFromFile(const char* path) {
         i+='a'-'A';
       }
       extS+=i;
+    }
+
+    if (extS==".sqv" || extS==".sqv4") {
+      FILE* f=ps_fopen(path,"rb");
+      if (!f) { lastError=strerror(errno); BUSY_END; return ret; }
+      if (fseek(f,0,SEEK_END)!=0) { fclose(f); lastError="could not seek SQV4 file"; BUSY_END; return ret; }
+      long length=ftell(f);
+      if (length<16 || length>18000000 || fseek(f,0,SEEK_SET)!=0) {
+        fclose(f); lastError="invalid SQV4 file size"; BUSY_END; return ret;
+      }
+      std::vector<uint8_t> bytes(length);
+      bool readOK=fread(bytes.data(),1,bytes.size(),f)==bytes.size(); fclose(f);
+      sqv4::Header header;
+      if (!readOK || !sqv4::inspect(bytes.data(),bytes.size(),header) || header.rate>2147483647u ||
+          song.sample.size()+header.channels>32768) {
+        lastError="invalid or unsupported SQV4 file"; BUSY_END; return ret;
+      }
+      if (header.channels!=1) {
+        lastError="Stereo SQV4 is not supported; convert to mono before importing.";
+        BUSY_END; return ret;
+      }
+      if (header.samples>16777215) {
+        lastError="SQV4 sample exceeds Furnace sample limits"; BUSY_END; return ret;
+      }
+      DivSample* sample=new DivSample;
+      sample->name=stripPath;
+      sample->centerRate=header.rate;
+      sample->depth=header.variant==0?DIV_SAMPLE_DEPTH_SQV4H:
+        (header.variant==1?DIV_SAMPLE_DEPTH_SQV4L:DIV_SAMPLE_DEPTH_SQV4L_PLUS);
+      sample->init(header.samples);
+      memcpy(sample->getCurBuf(),bytes.data(),bytes.size());
+      ret.push_back(sample);
+      BUSY_END;
+      return ret;
     }
 
     if(extS == ".pps" || extS == ".ppc" || extS == ".pvi" ||
@@ -433,6 +468,10 @@ std::vector<DivSample*> DivEngine::sampleFromFile(const char* path) {
 }
 
 DivSample* DivEngine::sampleFromFileRaw(const char* path, DivSampleDepth depth, int channels, bool bigEndian, bool unsign, bool swapNibbles, int rate) {
+  if (divSampleIsSQV4(depth)) {
+    lastError="Use normal sample import for .sqv/.sqv4 containers.";
+    return NULL;
+  }
   if (song.sample.size()>=32768) {
     lastError="too many samples!";
     return NULL;

@@ -914,6 +914,7 @@ struct DivInstrumentS3HS {
   unsigned char op8v, op8a, op8d, op8s, op8r;
   unsigned char mode;
   signed char fb;
+  unsigned char fbDest;
   int wave;
 
   bool operator==(const DivInstrumentS3HS& other);
@@ -985,7 +986,8 @@ struct DivInstrumentS3HS {
     op8s(0), 
     op8r(0),
     mode(0),
-    fb(0)
+    fb(0),
+    fbDest(0)
     {}
 };
 

@@ -481,6 +481,14 @@ void FurnaceGUI::drawExportROM(bool onWindow) {
       }
       break;
     }
+    case DIV_ROM_SGUB: {
+      bool repeat=romConfig.getBool("loop",false);
+      if (ImGui::Checkbox(_("repeat entire song"),&repeat)) {
+        romConfig.set("loop",repeat);
+      }
+      ImGui::TextWrapped("%s",_("SGUB v2 repeats from the beginning, including the intro; internal loop points are not stored. Waveforms and PCM data are stored in pools."));
+      break;
+    }
     case DIV_ROM_GRUB: {
       bool grubExportBin=romConfig.getBool("exportBin",false);
       if (ImGui::Checkbox(_("export binary file"),&grubExportBin)) {

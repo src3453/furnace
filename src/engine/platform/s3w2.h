@@ -8,6 +8,7 @@ class DivPlatformS3W2: public DivDispatch {
     bool pcm;
     signed short wave;
     signed int sample;
+    unsigned char pan;
     int hasOffset, pcmOffset;
     signed char waveROM[256] = {0}; // 8 bit signed waveform
     bool pcmLoop;
@@ -20,6 +21,7 @@ class DivPlatformS3W2: public DivDispatch {
       wave(-1),
       hasOffset(0),
       pcmOffset(0),
+      pan(0),
       pcmLoop(false) {}
   };
   Channel chan[8];
@@ -34,6 +36,8 @@ class DivPlatformS3W2: public DivDispatch {
   unsigned char* sampleMem;
   size_t sampleMemLen;
   unsigned int sampleOffSU[256];
+  unsigned int sampleLenSU[256];
+  bool sampleSQV4[256];
   S3W2_Sound* chip;
   DivPitchTable pitchTable;
   unsigned char regPool[0x900]; // 0x000-0x8FF
@@ -52,14 +56,17 @@ class DivPlatformS3W2: public DivDispatch {
     void tick(bool sysTick=true);
     void muteChannel(int ch, bool mute);
     int getOutputCount();
+    unsigned short getPan(int ch);
     bool hasAcquireDirect();
     void notifyWaveChange(int wave);
+    void notifyPitchTable(int sample=-1);
     void notifyInsDeletion(void* ins);
         const void* getSampleMem(int index);
     size_t getSampleMemCapacity(int index);
     size_t getSampleMemUsage(int index);
     const DivMemoryComposition* getMemCompo(int index);
     bool isSampleLoaded(int index, int sample);
+    DivChannelModeHints getModeHints(int ch);
     void renderSamples(int chipID);
     void poke(unsigned int addr, unsigned short val);
     void poke(std::vector<DivRegWrite>& wlist);

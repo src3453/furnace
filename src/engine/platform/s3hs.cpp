@@ -13,9 +13,37 @@
 unsigned int s3hs_chanaddrs_freq[12] = {0x400000,0x400040,0x400080,0x4000c0,0x400100,0x400140,0x400180,0x4001c0,0x400200,0x400230,0x400260,0x400290};
 unsigned int s3hs_chanaddrs_volume[12] = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x400202,0x400232,0x400262,0x400292};
 
+// Operator volumes affected by channel volume for each S3HS modulation mode.
+static constexpr bool s3hs_volume_scaling[13][8] = {
+  {true,true,true,true,true,true,true,true},
+  {true,true,true,true,false,false,false,false},
+  {true,true,true,true,false,false,false,false},
+  {true,true,false,false,false,false,false,false},
+  {true,false,false,false,false,false,false,false},
+  {true,true,false,false,true,true,false,false},
+  {true,false,true,false,true,false,true,false},
+  {true,false,false,false,false,false,false,false},
+  {true,true,false,false,false,false,false,false},
+  {true,false,false,false,false,false,false,false},
+  {true,true,true,true,false,false,false,false},
+  {true,true,false,false,false,false,false,false},
+  {true,false,false,false,false,false,false,false}
+};
+
+static inline unsigned char s3hs_scaled_op_volume(unsigned char opVolume, int channelVolume, int mode, int op) {
+  if (mode < 0 || mode >= 13 || !s3hs_volume_scaling[mode][op]) return opVolume;
+  return (unsigned char)((opVolume * channelVolume) / 255);
+}
+
 void DivPlatformS3HS::doWrite(unsigned int addr, unsigned char data) {
   //printf("S3W: %lld %08x : %02x\n", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count(), addr, (int)data);
   cpt->ram_poke(cpt->ram,(int)addr,(Byte)data);
+}
+
+void DivPlatformS3HS::writeOpVolumes(int channel, int channelVolume, int mode, int* opVolumes) {
+  for (int op = 0; op < 8; ++op) {
+    rWrite(0x400010 + 64*channel + op, s3hs_scaled_op_volume(opVolumes[op], channelVolume, mode, op));
+  }
 }
 
 void DivPlatformS3HS::updateWave(int ch) {
@@ -139,14 +167,7 @@ void DivPlatformS3HS::tick(bool sysTick) {
         }
       }
       if (i < 8) {
-        rWrite(0x400010 + 64*i,(unsigned char)((float)(chan[i].opvols[0]*volume)/256));
-        rWrite(0x400011 + 64*i,(unsigned char)((float)(chan[i].opvols[1]*(chan[i].modmode>3?255:volume))/256));
-        rWrite(0x400012 + 64*i,(unsigned char)((float)(chan[i].opvols[2]*(chan[i].modmode>2?255:volume))/256));
-        rWrite(0x400013 + 64*i,(unsigned char)((float)(chan[i].opvols[3]*(chan[i].modmode>2?255:volume))/256));
-        rWrite(0x400014 + 64*i,(unsigned char)((float)(chan[i].opvols[4]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
-        rWrite(0x400015 + 64*i,(unsigned char)((float)(chan[i].opvols[5]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
-        rWrite(0x400016 + 64*i,(unsigned char)((float)(chan[i].opvols[6]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
-        rWrite(0x400017 + 64*i,(unsigned char)((float)(chan[i].opvols[7]*(chan[i].modmode>3||chan[i].modmode==1?255:volume))/256));
+        writeOpVolumes(i, volume, chan[i].modmode, chan[i].opvols);
       }
     }
     if (NEW_ARP_STRAT) {
@@ -318,14 +339,7 @@ void DivPlatformS3HS::tick(bool sysTick) {
     }
     if (chan[i].volumeChanged){
       if (i<8) {
-        rWrite(0x400010 + 64*i,(unsigned char)((float)(chan[i].opvols[0]*chan[i].outVol)/256));
-        rWrite(0x400011 + 64*i,(unsigned char)((float)(chan[i].opvols[1]*(chan[i].modmode>3?255:chan[i].outVol))/256));
-        rWrite(0x400012 + 64*i,(unsigned char)((float)(chan[i].opvols[2]*(chan[i].modmode>2?255:chan[i].outVol))/256));
-        rWrite(0x400013 + 64*i,(unsigned char)((float)(chan[i].opvols[3]*(chan[i].modmode>2?255:chan[i].outVol))/256));
-        rWrite(0x400014 + 64*i,(unsigned char)((float)(chan[i].opvols[4]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
-        rWrite(0x400015 + 64*i,(unsigned char)((float)(chan[i].opvols[5]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
-        rWrite(0x400016 + 64*i,(unsigned char)((float)(chan[i].opvols[6]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
-        rWrite(0x400017 + 64*i,(unsigned char)((float)(chan[i].opvols[7]*(chan[i].modmode>3||chan[i].modmode==1?255:chan[i].outVol))/256));
+        writeOpVolumes(i, chan[i].outVol, chan[i].modmode, chan[i].opvols);
       } else {
         rWrite(s3hs_chanaddrs_volume[i],chan[i].outVol);
       }
@@ -442,6 +456,7 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
         rWrite(0x40003f + 64*c.chan,ins->s3hs.op8r);
         rWrite(0x40001c + 64*c.chan,ins->s3hs.mode);
         rWrite(0x40001f + 64*c.chan,(int)(ins->s3hs.fb)+128);
+        rWrite(0x4003c0 + c.chan,ins->s3hs.fbDest);
         chan[c.chan].modmode = ins->s3hs.mode;
         chan[c.chan].opvols[0] = ins->s3hs.op1v;
         chan[c.chan].opvols[1] = ins->s3hs.op2v;
@@ -495,14 +510,7 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
       //chan[c.chan].vol=255;
       if (chan[c.chan].vol>255) chan[c.chan].vol=255;
       if (c.chan < 8 ) {
-        rWrite(0x400010 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[0]*chan[c.chan].vol)/256));
-        rWrite(0x400011 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[1]*(chan[c.chan].modmode>3?255:chan[c.chan].vol))/256));
-        rWrite(0x400012 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[2]*(chan[c.chan].modmode>2?255:chan[c.chan].vol))/256));
-        rWrite(0x400013 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[3]*(chan[c.chan].modmode>2?255:chan[c.chan].vol))/256));
-        rWrite(0x400014 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[4]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
-        rWrite(0x400015 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[5]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
-        rWrite(0x400016 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[6]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
-        rWrite(0x400017 + 64*c.chan,(unsigned char)((float)(chan[c.chan].opvols[7]*(chan[c.chan].modmode>3||chan[c.chan].modmode==1?255:chan[c.chan].vol))/256));
+        writeOpVolumes(c.chan, chan[c.chan].vol, chan[c.chan].modmode, chan[c.chan].opvols);
       } else {
         rWrite(0x400202 + 48*(c.chan-8),chan[c.chan].vol); 
       }
@@ -764,6 +772,7 @@ void DivPlatformS3HS::reset() {
   }
   for (int i=0;i<8;i++) {
     rWrite(0x40001f+64*i,0x80);
+    rWrite(0x4003c0+i,0);
   }
   for (int i=8;i<12;i++) {
     rWrite(0x400203+48*(i-8),1);

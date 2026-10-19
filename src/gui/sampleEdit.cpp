@@ -673,7 +673,11 @@ void FurnaceGUI::drawSampleEdit() {
           ImGui::SameLine();
           ImGui::SetNextItemWidth(ImGui::GetContentRegionAvail().x);
           if (ImGui::BeginCombo("##SampleType",sampleType.c_str())) {
-            for (int i=0; i<DIV_SAMPLE_DEPTH_MAX; i++) {
+            for (int entry=0; entry<DIV_SAMPLE_DEPTH_MAX; entry++) {
+              // Keep serialized depth IDs stable while showing H, L, L+ together.
+              int i=entry==DIV_SAMPLE_DEPTH_SQV4L?DIV_SAMPLE_DEPTH_SQV4H:
+                entry==DIV_SAMPLE_DEPTH_SQV4L_PLUS?DIV_SAMPLE_DEPTH_SQV4L:
+                entry==DIV_SAMPLE_DEPTH_SQV4H?DIV_SAMPLE_DEPTH_SQV4L_PLUS:entry;
               if (sampleDepths[i]==NULL) continue;
               if (ImGui::Selectable(sampleDepths[i],sample->depth==(DivSampleDepth)i)) {
                 sample->prepareUndo(true);

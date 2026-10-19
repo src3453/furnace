@@ -50,8 +50,19 @@ enum DivSampleDepth: unsigned char {
   DIV_SAMPLE_DEPTH_12BIT=14,
   DIV_SAMPLE_DEPTH_4BIT=15,
   DIV_SAMPLE_DEPTH_16BIT=16,
+  DIV_SAMPLE_DEPTH_SQV4L=17,
+  DIV_SAMPLE_DEPTH_SQV4L_PLUS=18,
+  DIV_SAMPLE_DEPTH_SQV4H=19, // do not renumber persisted L/L+ depths
   DIV_SAMPLE_DEPTH_MAX // boundary for sample depth
 };
+
+inline bool divSampleIsSQV4(DivSampleDepth depth) {
+  return depth==DIV_SAMPLE_DEPTH_SQV4H || depth==DIV_SAMPLE_DEPTH_SQV4L || depth==DIV_SAMPLE_DEPTH_SQV4L_PLUS;
+}
+
+inline unsigned divSampleSQV4Variant(DivSampleDepth depth) {
+  return depth==DIV_SAMPLE_DEPTH_SQV4H?0:(depth==DIV_SAMPLE_DEPTH_SQV4L?1:2);
+}
 
 enum DivResampleFilters {
   DIV_RESAMPLE_NONE=0,
@@ -120,6 +131,7 @@ struct DivSample {
   // - 12: C219 "µ-law" PCM
   // - 13: IMA ADPCM
   // - 14: 12-bit PCM (MultiPCM)
+  // - 17/18/19: SQV4L / SQV4L+ / SQV4H mono containers (v1/v2)
   // - 16: 16-bit PCM
   DivSampleDepth depth;
   bool loop, brrEmphasis, brrNoFilter, dither;
@@ -150,6 +162,12 @@ struct DivSample {
   unsigned char* data4; // 15
 
   unsigned int length8, length16, length1, lengthDPCM, lengthZ, lengthQSoundA, lengthA, lengthB, lengthK, lengthBRR, lengthVOX, lengthMuLaw, lengthC219, lengthIMA, length12, length4;
+
+  // Native mono SQV4 containers, including header and fragment volume bytes.
+  unsigned char* dataSQV4H;
+  unsigned char* dataSQV4L;
+  unsigned char* dataSQV4LPlus;
+  unsigned int lengthSQV4H, lengthSQV4L, lengthSQV4LPlus;
 
   unsigned int samples;
 
@@ -301,6 +319,9 @@ struct DivSample {
    */
   void render(unsigned int formatMask=0xffffffff);
 
+  // SQV4 hardware image: native H/L/L+ retain their codes and fragment gains.
+  std::vector<unsigned char> getSQV4(unsigned int count=0xffffffff);
+
   /**
    * get the sample data for the current depth.
    * @return the sample data, or NULL if not created.
@@ -378,6 +399,12 @@ struct DivSample {
     lengthIMA(0),
     length12(0),
     length4(0),
+    dataSQV4H(NULL),
+    dataSQV4L(NULL),
+    dataSQV4LPlus(NULL),
+    lengthSQV4H(0),
+    lengthSQV4L(0),
+    lengthSQV4LPlus(0),
     samples(0) {
     for (int i=0; i<DIV_MAX_CHIPS; i++) {
       for (int j=0; j<DIV_MAX_SAMPLE_TYPE; j++) {

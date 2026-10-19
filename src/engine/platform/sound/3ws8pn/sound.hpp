@@ -1,4 +1,7 @@
+// Furnace S3W2 stub: this core is not the normative CPT32 SGU specification.
+// In particular, modulation IDs 3/4 are Slew; SGUB export translates them.
 #include <array>
+#include "../../../sqv4.h"
 #include <cstdint>
 #include <memory>
 #include <vector>
@@ -8,27 +11,29 @@
 =========================
 Overall: Fantasy wavetable soundchip with 8 of wavetable/PCM/noise channels
 Wavetable: Size: 256x256
+Wavetable RAM: 16kbit SRAM
 Wavetable Modulation: with combining two wavetables (ex. CH1+CH2, CH3+CH8)... Phase Modulation, Ring Modulation, Hard Sync, Window, ...
-PCM: 8bit, RAM 8Mbit (1MB), 20bit I/O (also can output 16bit with DMA, no volume control)
-Noise: LFSR, 1bit output
+PCM: 8bit, RAM Max 8Mbit (1MB), 20bit I/O (also can output 16bit with DMA, no volume control)
+Noise: 32-bit LFSR, 1bit output, customizable LFSR Tap
 Mixer: 16bit Stereo Linear PCM, 48KHz Master Output, each channel has 256 volume steps, 16 panpot (each stereo channel has 16 steps)
 Master Clock: 9.216MHz, Main Sample Clock, divived by 48, 192KHz, all sound frequencies were quantized by this value
 Registers (all bytes are in big endian):
-0x000-0x7FF: Channel Wave Table Data (8 channels x 256 bytes)
- - +0x00~0xFF: Wave Table Data (256 bytes)
- in PCM Mode:
- - +0x00~0x02: PCM Start Address (MSB 4bit: Reserved, LSB 20bit: Address)
- - +0x03~0x05: PCM End Address (MSB 4bit: Reserved, LSB 20bit: Address)
- - +0x06~0x08: PCM Loop Address (MSB 4bit: Reserved, LSB 20bit: Address)
- - +0x09: PCM Playing Control (bit0: Play/Stop, bit1: Loop On/Off, bit2~7: Reserved)
+0x000-0x7FF: Channel Wavetable RAM (8 channels x 256 bytes)
+ - +0x00~0xFF: Wavetable Data (256 bytes)
 0x800-0x8FF: Channel Control Registers (8 channels x 32 bytes)
  - +0x00~0x01: Frequency (in Hertz, 16bit, in PCM Mode: Sample Rate (32x Frequency (ex. 64hz -> 0x0002)))
- - +0x02: Waveform Type (0: Wavetable, 1: PCM, 2: Noise, 3: DMA PCM (16bit), 4~: Reserved)
+ - +0x02: Waveform Type (0: Wavetable, 1: PCM, 2: Noise, 3: DMA PCM (16bit), 4: SQV4, 5~: Reserved)
  - +0x03: Volume (0~255)
  - +0x04: Panpot (MSB: Left 4bit, LSB: Right 4bit)
  - +0x05: Waveform Modulation Type (MSB 5bit: Type, LSB 3bit: Target Channel (0~7))
  - +0x06~0x09: Modulation Depth/Parameter (depends on Modulation Type)
  - +0x0A: Any access in this register will reset the channel phase
+ - +0x0B: Modulation Targeting Mode (bit0: 0=Absolute, 1=Relative, bit1~7: Reserved)
+  in PCM Mode:
+ - +0x10~0x12: PCM Start Address (MSB 4bit: Reserved, LSB 20bit: Address)
+ - +0x13~0x15: PCM End Address (MSB 4bit: Reserved, LSB 20bit: Address)
+ - +0x16~0x18: PCM Loop Address (MSB 4bit: Reserved, LSB 20bit: Address)
+ - +0x19: PCM Playing Control (bit0: Play/Stop, bit1: Loop On/Off, bit2~7: Reserved)
 */
 
 // 定数定義
@@ -44,7 +49,8 @@ enum WaveformType {
     WAVEFORM_WAVETABLE = 0,
     WAVEFORM_PCM = 1,
     WAVEFORM_NOISE = 2,
-    WAVEFORM_DMA_PCM = 3
+    WAVEFORM_DMA_PCM = 3,
+    WAVEFORM_SQV4 = 4
 };
 
 // 変調タイプ
@@ -52,8 +58,8 @@ enum ModulationType {
     MOD_NONE = 0,
     MOD_PHASE = 1,
     MOD_RING = 2,
-    MOD_HARD_SYNC = 3,
-    MOD_WINDOW = 4
+    MOD_SLEW_RATE = 3,
+    MOD_SLEW_STEP = 4
 };
 
 // チャンネル制御構造体
@@ -75,12 +81,19 @@ struct Channel {
     uint32_t pcm_loop_addr;      // PCMループアドレス (20bit)
     uint8_t pcm_control;         // PCM制御レジスタ
     
+    sqv4::Header sqv4_header;
+    sqv4::State sqv4_state;
+    uint32_t sqv4_next=0, sqv4_loop=0;
+    int16_t sqv4_sample=0;
+    bool sqv4_ready=false;
+
     // 内部状態
     uint64_t old_phase;
     uint32_t lfsr_state;         // ノイズ用LFSR状態
     double phase;              // 現在の位相 (1 = 1サンプル (in 192KHz) , 256 = 1周期)
     int16_t last_sample;        // 最後に出力したサンプル値
     bool active;                 // チャンネルが有効かどうか
+    int slew_cur;               // スルーレート変調用の現在の値
     
     // 波形テーブルデータ
     std::array<uint8_t, WAVETABLE_SIZE> wavetable;
@@ -120,6 +133,7 @@ private:
     int16_t generatePCMSample(int ch);
     int16_t generateNoiseSample(int ch);
     int16_t generateDMAPCMSample(int ch);
+    int16_t generateSQV4Sample(int ch);
     int16_t applyModulation(int ch, int16_t& sample);
     void mixChannels(int16_t* left, int16_t* right);
     

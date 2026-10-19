@@ -2,8 +2,9 @@
 #include "s3w2.h"
 #include "../engine.h"
 #include <math.h>
+#include "furIcons.h"
+#include "IconsFontAwesome4.h"
 
-#define CHIP_DIVIDER 1 // 本来のクロックは9216000Hzだが、無視する
 #define CHIP_FREQBASE 48000 // DAC output rate
 #define regBase 0x800
 
@@ -127,7 +128,7 @@ void DivPlatformS3W2::tick(bool sysTick) {
     {
       if (chan[i].pcm) {
         // PCM mode
-        rWrite(addrbase+0x02,1); // +0x02: Waveform Type (PCM)
+        rWrite(addrbase+0x02,(chan[i].sample>=0 && chan[i].sample<256 && sampleSQV4[chan[i].sample])?4:1); // PCM / SQV4
       } else
       // Wavetable/Noise mode
       rWrite(addrbase+0x02,chan[i].std.duty.val==1?2:0); // +0x02: Waveform Type (Wave/Noise)
@@ -163,54 +164,50 @@ void DivPlatformS3W2::tick(bool sysTick) {
       if (chan[i].pcm) {
           int sNum=chan[i].sample;
           DivSample* sample=parent->getSample(sNum);
-          if (sample!=NULL && sNum>=0 && sNum<parent->song.sampleLen) {
-            unsigned int sampleEnd=sampleOffSU[sNum]+(sample->getLoopEndPosition());
-            unsigned int off=sampleOffSU[sNum]+chan[i].pcmOffset;
+          if (sample!=NULL && sNum>=0 && sNum<256 && sNum<parent->song.sampleLen && sampleLoaded[sNum]) {
+            bool compressed=sampleSQV4[sNum];
+            unsigned int off=sampleOffSU[sNum];
+            unsigned int end=off+sampleLenSU[sNum];
+            if (!compressed) off+=std::min((unsigned int)std::max(0,chan[i].pcmOffset),sampleLenSU[sNum]);
+            // SQV4 starts at its header. PCM offsets cannot seek into compressed bytes.
             chan[i].hasOffset=0;
-            if (sampleEnd>=getSampleMemCapacity(0)) sampleEnd=getSampleMemCapacity(0)-1;
-            rWrite24(i*0x100+0, off); // +0x00~0x02: PCM Start Address
-            rWrite24(i*0x100+3, sampleEnd); // +0x03~0x05: PCM End Address
-            rWrite24(i*0x100+6, 0x000000); // +0x06~0x08: PCM Loop Address (0x000000 = no loop)
-            rWrite(i*0x100+9,0b01); // +0x09: PCM Playing Control (bit0: Play/Stop, bit1: Loop On/Off, bit2~7: Reserved)
+            rWrite(addrbase+0x19,0);
+            rWrite(addrbase+0x02,compressed?4:1);
+            rWrite24(addrbase+0x10,off);
+            rWrite24(addrbase+0x13,end);
+            unsigned int loop=compressed?sampleOffSU[sNum]:0;
             if (sample->isLoopable()) {
-              unsigned int sampleLoop=sampleOffSU[sNum]+sample->getLoopStartPosition();
-              unsigned int sampleLoopEnd=sampleOffSU[sNum]+sample->getLoopEndPosition();
-              if (sampleLoop>=getSampleMemCapacity(0)) sampleLoop=getSampleMemCapacity(0)-1;
-              rWrite24(i*0x100+6, sampleLoop); // +0x06~0x08: PCM Loop Address
-              rWrite24(i*0x100+3, sampleLoopEnd); // +0x03~0x05: PCM End Address
-              rWrite(i*0x100+9,0b11); // +0x09: PCM Playing Control (bit0: Play/Stop, bit1: Loop On/Off, bit2~7: Reserved)
-              chan[i].pcmLoop=true;
-            } else {
-              rWrite(i*0x100+9,0b01); // +0x09: PCM Playing Control (bit0: Play/Stop, bit1: Loop On/Off, bit2~7: Reserved)
-              chan[i].pcmLoop=false;
+              loop=sampleOffSU[sNum]+(compressed?
+                (sample->loopStart==0?0:16+(sample->loopStart/64)*(sample->depth==DIV_SAMPLE_DEPTH_SQV4H?33:25)):
+                sample->loopStart);
             }
+            rWrite24(addrbase+0x16,loop);
+            rWrite(addrbase+0x0A,0);
+            rWrite(addrbase+0x19,sample->isLoopable()?3:1);
+            chan[i].pcmLoop=sample->isLoopable();
+          } else {
+            rWrite(addrbase+0x19,0);
           }
-          rWrite(regBase+i*0x20+0x02,1); // +0x02: Waveform Type (PCM)
         }
     }
     if (isMuted[i]) {
       rWrite(addrbase+0x03,0); // +0x03: Volume (0~255)
     }
     if (chan[i].freqChanged || chan[i].keyOn || chan[i].keyOff) {
-      //DivInstrument* ins=parent->getIns(chan[i].ins,DIV_INS_SU);
-      chan[i].freq=parent->calcFreq(chan[i].baseFreq,chan[i].pitch,chan[i].fixedArp?chan[i].baseNoteOverride:chan[i].arpOff,chan[i].fixedArp,0,0,chan[i].pitch2,chipClock,CHIP_FREQBASE)/32;
-      if (chan[i].pcm) {
+      // SharedChannel owns pitch/arp/raw-frequency semantics. The wavetable
+      // register is Hz; only PCM uses units of 32 samples per second.
+      double frequency=chan[i].calcFreq();
+      if (chan[i].pcm && !chan[i].rawFreq) {
         DivSample* sample=parent->getSample(chan[i].sample);
-        if (sample!=NULL) {
-          float off=0.5;
-          if (sample->centerRate<1) {
-            off=0.5;
-          } else {
-            off=(float)sample->centerRate/(8363.0*1.0);
-          }
-          chan[i].freq=(float)chan[i].freq*off;
-          rWrite16(addrbase+0x00,(unsigned short)(chan[i].freq)); // +0x00~0x01: Sample Rate (32x Frequency)
-        }
-        chan[i].freqChanged=false;
-      } else {
-          rWrite16(addrbase+0x00,(unsigned short)(chan[i].freq)); // +0x00~0x01: Frequency
-          chan[i].freqChanged=false;
+        double center=(sample!=NULL && sample->centerRate>0)?sample->centerRate:parent->getCenterRate();
+        double c4=440.0*pow(2.0,-9.0/12.0);
+        frequency*=center/(c4*32.0);
       }
+      chan[i].freq=(int)CLAMP(round(frequency),0.0,65535.0);
+      rWrite16(addrbase+0x00,chan[i].freq);
+      chan[i].freqChanged=false;
+      chan[i].keyOn=false;
+      chan[i].keyOff=false;
     }
   }
 }
@@ -237,6 +234,7 @@ int DivPlatformS3W2::dispatch(DivCommand c) {
           chan[c.chan].freqChanged=true;
         }
       }
+      if (c.value!=DIV_NOTE_NULL) chan[c.chan].note=c.value;
       chan[c.chan].active=true;
       chan[c.chan].macroInit(ins);
       if (!parent->song.compatFlags.brokenOutVol && !chan[c.chan].std.vol.will) {
@@ -292,6 +290,10 @@ int DivPlatformS3W2::dispatch(DivCommand c) {
     case DIV_CMD_WAVE:
       chan[c.chan].wave=c.value;
       chan[c.chan].ws.changeWave1(chan[c.chan].wave);
+      break;
+    case DIV_CMD_PANNING: 
+      chan[c.chan].pan=(c.value>>4)*16+(c.value2>>4);
+      rWrite(addrbase+0x04,chan[c.chan].pan); // +0x04: Panpot (MSB: Left 4bit, LSB: Right 4bit)
       break;
     case DIV_CMD_NOTE_PORTA: {
       int destFreq=chan[c.chan].calcBaseFreq(c.value2);
@@ -412,6 +414,21 @@ bool DivPlatformS3W2::hasAcquireDirect() {
   return false;
 }
 
+DivChannelModeHints DivPlatformS3W2::getModeHints(int ch) {
+  DivChannelModeHints ret;
+  ret.count=1;
+  ret.hint[0]=ICON_FA_VOLUME_UP;
+  ret.type[0]=0;
+
+  if (chan[ch].pcm) ret.type[0]=4;
+  
+  return ret;
+}
+
+unsigned short DivPlatformS3W2::getPan(int ch) {
+  return (chan[ch].pan>>4)<<8|(chan[ch].pan&0xf);
+}
+
 const void* DivPlatformS3W2::getSampleMem(int index) {
   return (index==0)?sampleMem:NULL;
 }
@@ -439,37 +456,30 @@ void DivPlatformS3W2::renderSamples(int sysID) {
   memset(sampleMem,0,sampleMemSize);
   memset(sampleOffSU,0,256*sizeof(unsigned int));
   memset(sampleLoaded,0,256*sizeof(bool));
+  memset(sampleLenSU,0,sizeof(sampleLenSU));
+  memset(sampleSQV4,0,sizeof(sampleSQV4));
 
   memCompo=DivMemoryComposition();
   memCompo.name="Sample RAM";
 
   size_t memPos=0;
-  for (int i=0; i<parent->song.sampleLen; i++) {
+  for (int i=0; i<parent->song.sampleLen && i<256; i++) {
     DivSample* s=parent->song.sample[i];
-    if (s->data8==NULL) {
+    sampleSQV4[i]=divSampleIsSQV4(s->depth);
+    if (!s->renderOn[0][sysID]) continue;
+    unsigned count=s->isLoopable()?s->loopEnd:s->samples;
+    auto encoded=sampleSQV4[i]?s->getSQV4(count):std::vector<unsigned char>();
+    const unsigned char* data=sampleSQV4[i]?encoded.data():(unsigned char*)s->data8;
+    size_t len=sampleSQV4[i]?encoded.size():count;
+    // End is a 20-bit exclusive pointer. Keep the last byte as the PCM end guard.
+    if (!data || !len || memPos+len>=getSampleMemCapacity(0)) {
+      logW("sample %d is empty or does not fit S3W2 RAM",i);
       continue;
-    };
-    if (!s->renderOn[0][sysID]) {
-      sampleOffSU[i]=0;
-      continue;
     }
-    
-    int len=s->getLoopEndPosition(DIV_SAMPLE_DEPTH_8BIT);
-    if (len == -1) {
-      len=s->getEndPosition(DIV_SAMPLE_DEPTH_8BIT);
-    }
-    int paddedLen=MIN((int)(getSampleMemCapacity(0)-memPos),len);
-    if (memPos>=getSampleMemCapacity(0)) {
-      logW("out of PCM memory for sample %d!",i);
-      break;
-    }
-    if (memPos+paddedLen>=getSampleMemCapacity(0)) {
-      memcpy(sampleMem+memPos,s->data8,getSampleMemCapacity(0)-memPos-1);
-      logW("out of PCM memory for sample %d!",i);
-    } else {
-      memcpy(sampleMem+memPos,s->data8,paddedLen);
-      sampleLoaded[i]=true;
-    }
+    int paddedLen=len;
+    for (size_t j=0;j<len;j++) sampleMem[memPos+j]=data[j]^(sampleSQV4[i]?0x80:0);
+    sampleLenSU[i]=len;
+    sampleLoaded[i]=true;
     sampleOffSU[i]=memPos;
     memCompo.entries.push_back(DivMemoryEntry(DIV_MEMORY_SAMPLE,"Sample",i,memPos,memPos+paddedLen));
     memPos+=paddedLen;
@@ -510,6 +520,13 @@ void DivPlatformS3W2::poke(std::vector<DivRegWrite>& wlist) {
   for (DivRegWrite& i: wlist) rWrite(i.addr,i.val);
 }
 
+void DivPlatformS3W2::notifyPitchTable(int sample) {
+  // DivPitchTable's frequency-mode note reference is five octaves above
+  // Furnace's stored note numbering. Fold the /32 into the table scale,
+  // so non-linear pitch offsets/macros are added in Hz, not divided by 32.
+  pitchTable.init(parent->song.tuning,chipClock,CHIP_FREQBASE/32.0,0xffff,false,parent->song.compatFlags.linearPitch);
+}
+
 int DivPlatformS3W2::init(DivEngine* p, int channels, int sugRate, const DivConfig& flags) {
   parent=p;
   dumpWrites=false;
@@ -522,11 +539,14 @@ int DivPlatformS3W2::init(DivEngine* p, int channels, int sugRate, const DivConf
   }
   rate=48000;
   chipClock=48000;
-  pitchTable.init(parent->song.tuning,chipClock,CHIP_FREQBASE,0xffff,false,parent->song.compatFlags.linearPitch);
+  notifyPitchTable();
   sampleMemSize=0x100000;// 1024KB (1048576 bytes)
   sampleMem=new unsigned char[sampleMemSize];
   memset(sampleMem,0,sampleMemSize); 
   sampleMemLen=0;
+  memset(sampleLoaded,0,sizeof(sampleLoaded));
+  memset(sampleSQV4,0,sizeof(sampleSQV4));
+  memset(sampleLenSU,0,sizeof(sampleLenSU));
   chip = new S3W2_Sound;
   reset();
   return 8;
