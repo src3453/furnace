@@ -7508,7 +7508,7 @@ bool FurnaceGUI::loop() {
     if (ImGui::BeginPopupModal(_("Import Raw Sample"),NULL,ImGuiWindowFlags_AlwaysAutoResize)) {
       ImGui::Text(_("Data type:"));
       for (int i=0; i<DIV_SAMPLE_DEPTH_MAX; i++) {
-        if (sampleDepths[i]==NULL || i==DIV_SAMPLE_DEPTH_SQV4L || i==DIV_SAMPLE_DEPTH_SQV4L_PLUS) continue;
+        if (sampleDepths[i]==NULL || divSampleIsSQV4((DivSampleDepth)i)) continue;
        if (ImGui::RadioButton(sampleDepths[i],pendingRawSampleDepth==i)) pendingRawSampleDepth=i;
       }
 

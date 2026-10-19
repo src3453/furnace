@@ -508,6 +508,7 @@ size | description
      | - 16: 16-bit PCM
      | - 17: SQV4L (fork extension)
      | - 18: SQV4L+ (fork extension)
+     | - 19: SQV4H (fork extension; distinct from depth 13 IMA ADPCM)
   1  | loop direction (>=123) or reserved
      | - 0: forward
      | - 1: backward
@@ -528,9 +529,9 @@ size | description
      |   does ADPCM-A and ADPCM-B on separate memory banks).
  ??? | sample data
      | - size is length
-     | - depths 17/18 store a complete mono SQV4 v1/v2 file; byte size is
-     |   16 + ceil(length/64)*25 (length remains the decoded sample count).
-     |   Validate variant 1/2 respectively, mono channel count and sample count.
+     | - depths 17/18/19 store a complete mono SQV4 v1/v2 file; byte size is
+     |   16 + ceil(length/64)*(depth==19 ? 33 : 25). Length remains the decoded
+     |   sample count. Validate variant 1/2/0 respectively, mono channel count and sample count.
      |   Other Furnace builds may not recognize these fork-specific depths.
 ```
 

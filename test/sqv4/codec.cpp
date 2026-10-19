@@ -62,7 +62,7 @@ int main() {
   // Exercise all 3-bit packing positions, state continuity, partial fragments,
   // editor conversion, PCM preview, FUR persistence and undo/redo.
   for (unsigned count: {0u,1u,5u,63u,64u,65u,129u,1024u}) {
-    for (auto depth: {DIV_SAMPLE_DEPTH_SQV4L,DIV_SAMPLE_DEPTH_SQV4L_PLUS}) {
+    for (auto depth: {DIV_SAMPLE_DEPTH_SQV4H,DIV_SAMPLE_DEPTH_SQV4L,DIV_SAMPLE_DEPTH_SQV4L_PLUS}) {
       DivSample sample;
       sample.centerRate=8000; assert(sample.init(count));
       for (unsigned i=0;i<count;i++) sample.data16[i]=int(i*1777%65536)-32768;
@@ -71,6 +71,7 @@ int main() {
       assert(sample.samples==count && sample.depth==depth);
       auto bytes=sample.getSQV4();
       assert(sqv4::decode(bytes.data(),bytes.size(),decoded,header));
+      assert(header.variant==divSampleSQV4Variant(depth));
       assert(std::equal(decoded.begin(),decoded.end(),sample.data16));
       SafeWriter writer; writer.init(); sample.putSampleData(&writer);
       SafeReader reader(writer.getFinalBuf(),writer.size());
@@ -88,9 +89,10 @@ int main() {
       writer.finish();
     }
   }
-  // IMA remains the existing sample format and uploads an H container.
+  // IMA remains a distinct WAV-style block; explicit .sqv export adapts it to H.
   DivSample ima; assert(ima.init(65)); std::copy(ramp.begin(),ramp.end(),ima.data16);
   ima.convert(DIV_SAMPLE_DEPTH_IMA_ADPCM,1u<<DIV_SAMPLE_DEPTH_8BIT);
+  assert(memcmp(ima.getCurBuf(),"SQV4",4)!=0);
   auto imaImage=ima.getSQV4(); assert(sqv4::inspect(imaImage.data(),imaImage.size(),header) && header.variant==0);
 
   S3W2_Sound sound;

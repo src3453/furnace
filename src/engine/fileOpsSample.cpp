@@ -73,7 +73,6 @@ std::vector<DivSample*> DivEngine::sampleFromFile(const char* path) {
       std::vector<uint8_t> bytes(length);
       bool readOK=fread(bytes.data(),1,bytes.size(),f)==bytes.size(); fclose(f);
       sqv4::Header header;
-      std::vector<int16_t> pcm;
       if (!readOK || !sqv4::inspect(bytes.data(),bytes.size(),header) || header.rate>2147483647u ||
           song.sample.size()+header.channels>32768) {
         lastError="invalid or unsupported SQV4 file"; BUSY_END; return ret;
@@ -82,22 +81,16 @@ std::vector<DivSample*> DivEngine::sampleFromFile(const char* path) {
         lastError="Stereo SQV4 is not supported; convert to mono before importing.";
         BUSY_END; return ret;
       }
-      if (!sqv4::decode(bytes.data(),bytes.size(),pcm,header)) {
+      if (header.samples>16777215) {
         lastError="SQV4 sample exceeds Furnace sample limits"; BUSY_END; return ret;
       }
       DivSample* sample=new DivSample;
       sample->name=stripPath;
       sample->centerRate=header.rate;
-      sample->depth=header.variant==0?DIV_SAMPLE_DEPTH_16BIT:
+      sample->depth=header.variant==0?DIV_SAMPLE_DEPTH_SQV4H:
         (header.variant==1?DIV_SAMPLE_DEPTH_SQV4L:DIV_SAMPLE_DEPTH_SQV4L_PLUS);
       sample->init(header.samples);
-      if (header.variant==0) {
-        std::copy(pcm.begin(),pcm.end(),sample->data16);
-        // Reuse Furnace's IMA sample format. SQV4 framing is adapted on S3W2 upload.
-        sample->convert(DIV_SAMPLE_DEPTH_IMA_ADPCM,getSampleFormatMask());
-      } else {
-        memcpy(sample->getCurBuf(),bytes.data(),bytes.size());
-      }
+      memcpy(sample->getCurBuf(),bytes.data(),bytes.size());
       ret.push_back(sample);
       BUSY_END;
       return ret;
@@ -475,7 +468,7 @@ std::vector<DivSample*> DivEngine::sampleFromFile(const char* path) {
 }
 
 DivSample* DivEngine::sampleFromFileRaw(const char* path, DivSampleDepth depth, int channels, bool bigEndian, bool unsign, bool swapNibbles, int rate) {
-  if (depth==DIV_SAMPLE_DEPTH_SQV4L || depth==DIV_SAMPLE_DEPTH_SQV4L_PLUS) {
+  if (divSampleIsSQV4(depth)) {
     lastError="Use normal sample import for .sqv/.sqv4 containers.";
     return NULL;
   }

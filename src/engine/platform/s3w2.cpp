@@ -177,7 +177,7 @@ void DivPlatformS3W2::tick(bool sysTick) {
             unsigned int loop=compressed?sampleOffSU[sNum]:0;
             if (sample->isLoopable()) {
               loop=sampleOffSU[sNum]+(compressed?
-                (sample->loopStart==0?0:16+(sample->loopStart/64)*(sample->depth==DIV_SAMPLE_DEPTH_IMA_ADPCM?33:25)):
+                (sample->loopStart==0?0:16+(sample->loopStart/64)*(sample->depth==DIV_SAMPLE_DEPTH_SQV4H?33:25)):
                 sample->loopStart);
             }
             rWrite24(addrbase+0x16,loop);
@@ -449,7 +449,7 @@ void DivPlatformS3W2::renderSamples(int sysID) {
   size_t memPos=0;
   for (int i=0; i<parent->song.sampleLen && i<256; i++) {
     DivSample* s=parent->song.sample[i];
-    sampleSQV4[i]=s->depth==DIV_SAMPLE_DEPTH_IMA_ADPCM || s->depth==DIV_SAMPLE_DEPTH_SQV4L || s->depth==DIV_SAMPLE_DEPTH_SQV4L_PLUS;
+    sampleSQV4[i]=divSampleIsSQV4(s->depth);
     if (!s->renderOn[0][sysID]) continue;
     unsigned count=s->isLoopable()?s->loopEnd:s->samples;
     auto encoded=sampleSQV4[i]?s->getSQV4(count):std::vector<unsigned char>();

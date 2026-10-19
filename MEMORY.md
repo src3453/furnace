@@ -70,3 +70,17 @@ wave audio, repeat resets, core Slew semantics and existing SGUB playback.
   stereo rejection and S3W2 uploads. Use the matching VS developer toolset.
   test/sqv4/sgub_smoke.py validates compressed banks/loop relocation and runs
   the existing SGUB matrix through a v2 parser. Release build and these checks passed.
+
+## Native SQV4H sample type (2026-10-19)
+- SQV4H shares the IMA predictor algorithm but is a separate header-bearing file
+  format. It now has native depth 19 and its own container buffer. Do not alias
+  it to depth 13 (WAV-style IMA) or re-encode H imports through that format.
+- Preserve existing persisted depths 17=L and 18=L+. Display order is H, L, L+
+  in Sample Editor even though the numeric order remains L, L+, H. Import, FUR,
+  undo, raw SQV4 export and S3W2 upload retain native H header/codes/volumes.
+- Native H uses 33-byte fragments versus 25 for L/L+; apply this to allocation,
+  offsets, canonical truncation and loop pointers. S3W2 now selects compressed
+  waveform 4 for native SQV4 types, while ordinary IMA uses the PCM fallback.
+- Validation: the extended SQV4 codec/sample CTest passed for H/L/L+, including
+  native H conversion, FUR persistence and undo. The application rebuild was
+  stopped/skipped at the user's request because another build was running.
