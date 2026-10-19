@@ -7767,6 +7767,13 @@ void FurnaceGUI::drawInsEdit() {
           const int _S3HS_MAX_MOD_MODES = 12;
           P(CWSliderScalar("Modulation Mode",ImGuiDataType_U8,&ins->s3hs.mode,&_ZERO,&_S3HS_MAX_MOD_MODES)); rightClickable
           P(CWSliderScalar("Feedback",ImGuiDataType_S8,&ins->s3hs.fb,&_MINUS_ONE_HUNDRED_TWENTY_EIGHT,&_ONE_HUNDRED_TWENTY_SEVEN)); rightClickable
+          const char* s3hsFeedbackDestinations[]={"Operator 1","Operator 2","Operator 3","Operator 4","Operator 5","Operator 6","Operator 7","Operator 8"};
+          if (ImGui::BeginCombo("Feedback Destination Register",s3hsFeedbackDestinations[MIN(ins->s3hs.fbDest,7)])) {
+            for (int op=0; op<8; ++op) {
+              if (ImGui::Selectable(s3hsFeedbackDestinations[op],ins->s3hs.fbDest==op)) ins->s3hs.fbDest=op;
+            }
+            ImGui::EndCombo();
+          }
           ImGui::Text("Operator 1");
           if (ImGui::BeginTable("OP1Params",6,ImGuiTableFlags_NoHostExtendX)) {
             ImGui::TableSetupColumn("c0",ImGuiTableColumnFlags_WidthFixed,sliderSize.x);
@@ -9590,7 +9597,7 @@ void FurnaceGUI::drawInsEdit() {
               macroList.push_back(FurnaceGUIMacroDesc(_("Panning (left)"),&ins->std.panLMacro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER],false,NULL));
               macroList.push_back(FurnaceGUIMacroDesc(_("Panning (right)"),&ins->std.panRMacro,0,15,64,uiColors[GUI_COLOR_MACRO_OTHER]));
               macroList.push_back(FurnaceGUIMacroDesc(_("Phase Reset"),&ins->std.phaseResetMacro,0,1,32,uiColors[GUI_COLOR_MACRO_OTHER],false,NULL,NULL,true));
-              macroList.push_back(FurnaceGUIMacroDesc(_("Modulation Mode"),&ins->std.ex1Macro,0,3,90,uiColors[GUI_COLOR_MACRO_FILTER]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Modulation Mode"),&ins->std.ex1Macro,0,7,90,uiColors[GUI_COLOR_MACRO_FILTER]));
               macroList.push_back(FurnaceGUIMacroDesc(_("Modulator Channel"),&ins->std.ex2Macro,0,7,90,uiColors[GUI_COLOR_MACRO_FILTER]));
               macroList.push_back(FurnaceGUIMacroDesc(_("Modulation Parameter 1"),&ins->std.ex3Macro,0,65535,160,uiColors[GUI_COLOR_MACRO_FILTER]));
               macroList.push_back(FurnaceGUIMacroDesc(_("Modulation Parameter 2"),&ins->std.ex4Macro,0,65535,160,uiColors[GUI_COLOR_MACRO_FILTER]));

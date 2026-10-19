@@ -32,6 +32,14 @@ bool DivEngine::isROMExportViable(DivROMExportOptions opt)
     return false;
   }
 
+  if (opt==DIV_ROM_SGUB) {
+    if (song.systemLen<1 || song.systemLen>2) return false;
+    for (int i=0; i<song.systemLen; i++) {
+      if (song.system[i]!=DIV_SYSTEM_S3W2) return false;
+    }
+    return true;
+  }
+
   unsigned char sysReqCount[DIV_SYSTEM_MAX];
   memset(sysReqCount,0,DIV_SYSTEM_MAX);
   for (int i=0; i<song.systemLen; i++) {
@@ -130,6 +138,15 @@ void DivEngine::registerROMExports() {
       DIV_SYSTEM_PCSPKR
     },
     false, DIV_REQPOL_ANY
+  );
+
+  romExportDefs[DIV_ROM_SGUB]=new DivROMExportDef(
+    "CPT32 SGUB (S3W2)", "CPT32 contributors",
+    "SGUB v2 pooled stream for CPT32. One or two S3W2 chips only.\n"
+    "Fixed 60 Hz playback; sub-frame writes are quantized.\n"
+    "PCM banks are packed into the shared 1 MiB RAM.",
+    "SGUB music stream", ".sgub",
+    {DIV_SYSTEM_S3W2}, false, DIV_REQPOL_EXACT
   );
 
   romExportDefs[DIV_ROM_GRUB]=new DivROMExportDef(

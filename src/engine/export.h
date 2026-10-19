@@ -35,6 +35,8 @@ enum DivROMExportOptions {
   DIV_ROM_IPOD,
   DIV_ROM_GRUB,
 
+  DIV_ROM_SGUB,
+
   DIV_ROM_MAX
 };
 

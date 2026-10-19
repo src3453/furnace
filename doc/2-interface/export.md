@@ -104,6 +104,7 @@ the following formats and systems are supported:
 - TIunA assembly, using [Atari 2600 (with software pitch driver)](../7-systems/tia.md).
 - iPod .tone alarm, using [PC Speaker](../7-systems/pcspkr.md).
 - GRUB_INIT_TUNE, using [PC Speaker](../7-systems/pcspkr.md).
+- CPT32 SGUB v2, using one or two S3W2 chips (see below).
 
 ## text
 
@@ -136,3 +137,72 @@ the following systems are also supported when saving as 1.1.3+:
 - Famicom Disk System
 
 only use this option if you really need it. there are many features which DefleMask does not support, such as a variety of effects, FM macros and pitched samples, so these will be lost.
+
+## CPT32 SGUB (S3W2)
+
+With a song containing only one or two **3WS8PN (S3W2)** chips, choose
+**File > Export > ROM**, then **CPT32 SGUB (S3W2)**. Save as `.sgub`.
+The first chip maps to SGU0 and the second to SGU1; a single-chip song silences SGU1.
+This exports the selected subsong from order zero through its first end/loop.
+
+Command line:
+
+```sh
+furnace -romout song.sgub song.fur
+furnace -romconf loop=true -romout song.sgub song.fur
+```
+
+Playback uses the CPT32 emulator's `--music-stream song.sgub` option together
+with a guest program, or the guest `sgu_music_driver.sol`. SGUB is music data;
+it does not include a bootable program or a driver binary.
+The Rust reference reader and current CPT32 guest Sol player support both SGUB
+v1 and v2. Rebuild the current guest driver with `solc.py compile -O speed`; old
+driver binaries or source copies written by earlier Music Editor builds must
+be updated. The SGUB file itself does not need to be exported again.
+
+- SGUB v2 runs at **60 VSync frames/second**. The exporter accumulates Furnace
+  timing at 48 kHz and places each write in its containing 1/60-second frame.
+  Multiple ticks in one frame retain their write order, including phase-reset
+  strobes, but have no audible time between them. Sub-frame effects therefore
+  cannot be reproduced exactly. Tempo changes and non-60-Hz songs retain their
+  overall timing within one VSync frame.
+- **repeat entire song** is off by default. When enabled, playback repeats from
+  the beginning, including any intro; SGUB v2 has no internal loop-point field.
+  Frame zero resets both SGUs on every repetition. This resets channel registers,
+  wave RAM and phase; it does not model Furnace's internal loop modality.
+- CPT32 shares **one 1 MiB PCM RAM** between the two SGUs. Compatible layouts
+  share their existing offsets. Conflicting layouts are packed into separate
+  banks with silent end guards; chip 1 start/end/loop pointers are relocated
+  automatically, including byte carries. Export fails only if those banks and
+  guards exceed 1 MiB. The bank packer does not deduplicate individual samples
+  across conflicting layouts; rendering common samples on both chips can
+  therefore still consume space twice. Sample bytes are converted from signed
+  Furnace PCM to unsigned S3W2 PCM and stored once in a PCM pool. One fill
+  operation initializes unused PCM RAM to silence; pool-copy operations place
+  used data. Repeated 256-byte waveforms are deduplicated in the pool and copied
+  to each voice that uses them.
+- Export fails if a frame needs more than 65,535 operations or the stream exceeds
+  14 MiB. Cancellation and failures restore engine timing and stop capture.
+- Furnace mixer output volumes, patchbay routing and host effects are not part
+  of a register stream. Use S3W2 channel volume/pan registers for portable mixes.
+- **The Furnace S3W2 implementation is a stub, not the normative CPT32 SGU
+  implementation.** Its modulation IDs 3/4 mean Slew Rate/Slew Step, whereas
+  CPT32 keeps Hard Sync/Window at 3/4. Export translates Slew to CPT32 IDs 5/6.
+  Reserved Furnace modes 5..31 are no-ops in the stub and become None with a
+  warning. Validate playback with CPT32; stub preview is not a conformance test.
+  See CPT32 `doc/spec_SGU.md` and `doc/spec_SGUB.md` for the hardware contract.
+
+S3W2 pitch registers use Hz for wavetable/noise and 32 samples/second per unit
+for PCM. Pitch macros now use `SharedChannel::calcFreq()`; PCM is scaled from
+its C-4 sample rate after pitch calculation. Raw frequencies remain register
+values, and out-of-range values saturate rather than wrapping. A-4 at standard
+tuning writes 440 for wavetable; PCM C-4 writes approximately `centerRate / 32`.
+
+Developer checks:
+
+```sh
+cmake -S test/sgub -B build/sgub-check
+cmake --build build/sgub-check --config Release
+ctest --test-dir build/sgub-check -C Release --output-on-failure
+python test/sgub/smoke.py build/Release/furnace.exe
+```

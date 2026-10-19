@@ -4,6 +4,8 @@
 #include <cmath>
 #include <stdexcept>
 
+#define CLIP(x,min,max) ((x)<(min)?(min):((x)>(max)?(max):(x)))
+
 S3W2_Sound::S3W2_Sound()
 {
     initialize();
@@ -51,6 +53,8 @@ void S3W2_Sound::resetChannel(int ch)
     c.pcm_control = 0;
     c.phase = 0.0;
     c.sqv4_ready = false;
+    c.old_phase = 0;
+    c.slew_cur = 0;
     c.last_sample = 0;
     c.lfsr_state = 0x12D4803C;
     c.active = true;
@@ -65,19 +69,18 @@ void S3W2_Sound::writeRegister(uint32_t address, uint8_t value)
         // each channel has 256 bytes, 8 channels => 0x000-0x7FF
         uint32_t ch = (address >> 8) & 0x7; // address / 256
         uint8_t offset = address & 0xFF;
-        if (channels[ch].waveform_type == WAVEFORM_PCM) {
-            // in PCM mode, wavetable writes changes role to PCM registers
-            writeChannelPCMReg(static_cast<int>(ch), offset, value);
-        } else {
-            writeChannelWavetable(static_cast<int>(ch), offset, value);
-        }
+        writeChannelWavetable(static_cast<int>(ch), offset, value);
         return;
     }
     else if (address >= 0x800 && address <= 0x8FF)
     {
         uint32_t ch = ((address - 0x800) >> 5) & 0x7; // each channel 32 bytes
         uint8_t offset = (address - 0x800) & 0x1F;
-        writeChannelControl(static_cast<int>(ch), offset, value);
+        if (offset < 0x10) {
+            writeChannelControl(static_cast<int>(ch), offset, value);
+        } else {
+            writeChannelPCMReg(static_cast<int>(ch), offset - 0x10, value);
+        }
         return;
     }
     // other addresses not implemented yet
@@ -114,8 +117,10 @@ std::vector<std::vector<std::vector<int16_t>>> S3W2_Sound::clock(size_t samples)
             for (int j = 0; j < 4; ++j)
             {
                 int16_t sample = generateSample(ch);
-                output[ch][0][i] += sample; 
-                output[ch][1][i] += sample; // oversampling x4 192KHz -> 48KHz
+                uint8_t panL = channels[ch].panpot >> 4; // upper 4 bits for left
+                uint8_t panR = channels[ch].panpot & 0x0F; // lower 4 bits for right
+                output[ch][0][i] += sample * panL / 15; // oversampling x4 192KHz -> 48KHz
+                output[ch][1][i] += sample * panR / 15; // oversampling x4 192KHz -> 48KHz
                 //printf("Ch %d Sample %d, Subsample %d: %d\n", ch, i, j, sample);
             }
         }
@@ -186,22 +191,21 @@ int16_t S3W2_Sound::generateWavetableSample(int ch)
     if (c.modulation_type == MOD_RING)
     {
         int16_t mod_sample = channels[abs_target_ch].last_sample;
-        sample8 = static_cast<uint8_t>(((static_cast<int>(sample8) - 128) * (mod_sample + 32768) / 65536) + 128);
+        uint8_t org_sample8 = sample8;
+        sample8 = static_cast<uint8_t>CLIP((((static_cast<int>(org_sample8) - 128) * (mod_sample)) * (c.modulation_param_1)) / 65536 + 128, 0, 255);
+        //printf("Ring Mod Ch %d Target Ch %d Org %d Sample %d ModSample %d\n", ch, abs_target_ch, org_sample8, sample8, mod_sample);
     }
-    else if (c.modulation_type == MOD_HARD_SYNC)
-    {
-        if (channels[abs_target_ch].phase < 1.0)
-        {
-            c.phase = 0.0; // reset phase
-            index = 0;
-            sample8 = c.wavetable[index];
-        }
+    else if (c.modulation_type == MOD_SLEW_RATE) {
+        int diff = static_cast<int>(sample8 << 8) - static_cast<int>(c.slew_cur);
+        c.slew_cur += CLIP(diff, -c.modulation_param_1, c.modulation_param_1); // apply slew rate 
+        c.slew_cur = CLIP(c.slew_cur, 0, 255 << 8); // clamp to 0-255
+        sample8 = static_cast<uint8_t>(c.slew_cur >> 8);
     }
-    else if (c.modulation_type == MOD_WINDOW)
-    {
-        int16_t mod_sample = channels[abs_target_ch].last_sample;
-        if (mod_sample < 0)
-            sample8 = 128; // silence
+    else if (c.modulation_type == MOD_SLEW_STEP) {
+        int diff = static_cast<int>(sample8 << 8) - static_cast<int>(c.slew_cur);
+        c.slew_cur += (diff > 0) ? c.modulation_param_1 : -c.modulation_param_1; // apply slew rate 
+        c.slew_cur = CLIP(c.slew_cur, 0, 255 << 8); // clamp to 0-255
+        sample8 = static_cast<uint8_t>(c.slew_cur >> 8);
     }
     int16_t out = static_cast<int16_t>((static_cast<int>(sample8) - 128));
     return out;
@@ -264,19 +268,40 @@ int16_t S3W2_Sound::generatePCMSample(int ch)
     }
     uint32_t addr = (phase+c.pcm_start_addr) & (PCM_RAM_SIZE - 1);
     uint8_t sample8 = (*pcm_ram)[addr];
+    if (c.modulation_type == MOD_RING)
+    {
+        int16_t mod_sample = channels[abs_target_ch].last_sample;
+        uint8_t org_sample8 = sample8;
+        sample8 = static_cast<uint8_t>CLIP((((static_cast<int>(org_sample8) - 128) * (mod_sample)) * (c.modulation_param_1)) / 65536 + 128, 0, 255);
+        //printf("Ring Mod Ch %d Target Ch %d Org %d Sample %d ModSample %d\n", ch, abs_target_ch, org_sample8, sample8, mod_sample);
+    }
+    else if (c.modulation_type == MOD_SLEW_RATE) {
+        int diff = static_cast<int>(sample8 << 8) - static_cast<int>(c.slew_cur);
+        c.slew_cur += CLIP(diff, -c.modulation_param_1, c.modulation_param_1); // apply slew rate 
+        c.slew_cur = CLIP(c.slew_cur, 0, 255 << 8); // clamp to 0-255
+        sample8 = static_cast<uint8_t>(c.slew_cur >> 8);
+    }
+    else if (c.modulation_type == MOD_SLEW_STEP) {
+        int diff = static_cast<int>(sample8 << 8) - static_cast<int>(c.slew_cur);
+        c.slew_cur += (diff > 0) ? c.modulation_param_1 : -c.modulation_param_1; // apply slew rate 
+        c.slew_cur = CLIP(c.slew_cur, 0, 255 << 8); // clamp to 0-255
+        sample8 = static_cast<uint8_t>(c.slew_cur >> 8);
+    }
     int16_t out = static_cast<int16_t>((static_cast<int>(sample8) - 128));
     // advance
-    c.phase+=static_cast<double>(c.frequency)/SOUND_CLOCK/8; // advance phase
-    if (addr > c.pcm_end_addr)
+    if (addr >= c.pcm_end_addr)
     {
         if (c.pcm_control & 0x02)
-        { // loop on
-            phase = c.pcm_loop_addr-c.pcm_start_addr;
+        { // loop on 
+            c.phase = (c.pcm_loop_addr-c.pcm_start_addr)/256.0;
         }
         else
         {
-            phase = c.pcm_end_addr-c.pcm_start_addr;
+            c.phase = (c.pcm_end_addr-c.pcm_start_addr)/256.0;
+            out = 0; // silence after end
         }
+    } else {
+        c.phase+=static_cast<double>(c.frequency)/SOUND_CLOCK/8; // advance phase
     }
     //printf("PCM Ch %d curAddr %05X startAddr %05X endAddr %05X loopAddr %05X Sample %d\n", ch, addr, c.pcm_start_addr, c.pcm_end_addr, c.pcm_loop_addr, out);
     return out;
@@ -295,7 +320,7 @@ int16_t S3W2_Sound::generateNoiseSample(int ch)
     // advance
     c.phase+=static_cast<double>(c.frequency)/SOUND_CLOCK; // advance phase
     uint64_t phase = static_cast<uint64_t>(c.phase*256) & 0xFFFFFFFFFFFFFFFF;
-    if (c.old_phase/32 != phase/32) {
+    if (c.old_phase/8 != phase/8) {
         c.old_phase = static_cast<uint64_t>(c.phase*256) & 0xFFFFFFFFFFFFFFFF;
         uint32_t bit = 0;
         uint32_t taps = 0;
@@ -321,7 +346,28 @@ int16_t S3W2_Sound::generateNoiseSample(int ch)
                 break;
         }
     }
-    int16_t out = (c.lfsr_state & 1) ? 127 : -128;
+    uint8_t abs_target_ch = convertToAbsoluteChannelAddress(static_cast<uint8_t>(ch), c.modulation_targeting_mode, c.modulation_target);
+    uint8_t sample8 = (c.lfsr_state & 1) ? 255 : 0;
+    if (c.modulation_type == MOD_RING)
+    {
+        int16_t mod_sample = channels[abs_target_ch].last_sample;
+        uint8_t org_sample8 = sample8;
+        sample8 = static_cast<uint8_t>CLIP((((static_cast<int>(org_sample8) - 128) * (mod_sample)) * (c.modulation_param_1)) / 65536 + 128, 0, 255);
+        //printf("Ring Mod Ch %d Target Ch %d Org %d Sample %d ModSample %d\n", ch, abs_target_ch, org_sample8, sample8, mod_sample);
+    }
+    else if (c.modulation_type == MOD_SLEW_RATE) {
+        int diff = static_cast<int>(sample8 << 8) - static_cast<int>(c.slew_cur);
+        c.slew_cur += CLIP(diff, -c.modulation_param_1, c.modulation_param_1); // apply slew rate 
+        c.slew_cur = CLIP(c.slew_cur, 0, 255 << 8); // clamp to 0-255
+        sample8 = static_cast<uint8_t>(c.slew_cur >> 8);
+    }
+    else if (c.modulation_type == MOD_SLEW_STEP) {
+        int diff = static_cast<int>(sample8 << 8) - static_cast<int>(c.slew_cur);
+        c.slew_cur += (diff > 0) ? c.modulation_param_1 : -c.modulation_param_1; // apply slew rate 
+        c.slew_cur = CLIP(c.slew_cur, 0, 255 << 8); // clamp to 0-255
+        sample8 = static_cast<uint8_t>(c.slew_cur >> 8);
+    }
+    int16_t out = static_cast<int16_t>((static_cast<int>(sample8) - 128));
     return out;
 }
 
@@ -459,6 +505,7 @@ void S3W2_Sound::writeChannelControl(int ch, uint8_t offset, uint8_t value)
         // access resets phase
         c.phase = 0.0;
         c.sqv4_ready = false;
+        c.slew_cur = 0;
         c.lfsr_state = 0x12D4803C;
     }
     else if (offset == 0x0B)

@@ -2,8 +2,9 @@
 #include "s3w2.h"
 #include "../engine.h"
 #include <math.h>
+#include "furIcons.h"
+#include "IconsFontAwesome4.h"
 
-#define CHIP_DIVIDER 1 // 本来のクロックは9216000Hzだが、無視する
 #define CHIP_FREQBASE 48000 // DAC output rate
 #define regBase 0x800
 
@@ -193,25 +194,20 @@ void DivPlatformS3W2::tick(bool sysTick) {
       rWrite(addrbase+0x03,0); // +0x03: Volume (0~255)
     }
     if (chan[i].freqChanged || chan[i].keyOn || chan[i].keyOff) {
-      //DivInstrument* ins=parent->getIns(chan[i].ins,DIV_INS_SU);
-      chan[i].freq=parent->calcFreq(chan[i].baseFreq,chan[i].pitch,chan[i].fixedArp?chan[i].baseNoteOverride:chan[i].arpOff,chan[i].fixedArp,0,0,chan[i].pitch2,chipClock,CHIP_FREQBASE)/32;
-      if (chan[i].pcm) {
+      // SharedChannel owns pitch/arp/raw-frequency semantics. The wavetable
+      // register is Hz; only PCM uses units of 32 samples per second.
+      double frequency=chan[i].calcFreq();
+      if (chan[i].pcm && !chan[i].rawFreq) {
         DivSample* sample=parent->getSample(chan[i].sample);
-        if (sample!=NULL) {
-          float off=0.5;
-          if (sample->centerRate<1) {
-            off=0.5;
-          } else {
-            off=(float)sample->centerRate/(8363.0*1.0);
-          }
-          chan[i].freq=(float)chan[i].freq*off;
-          rWrite16(addrbase+0x00,(unsigned short)(chan[i].freq)); // +0x00~0x01: Sample Rate (32x Frequency)
-        }
-        chan[i].freqChanged=false;
-      } else {
-          rWrite16(addrbase+0x00,(unsigned short)(chan[i].freq)); // +0x00~0x01: Frequency
-          chan[i].freqChanged=false;
+        double center=(sample!=NULL && sample->centerRate>0)?sample->centerRate:parent->getCenterRate();
+        double c4=440.0*pow(2.0,-9.0/12.0);
+        frequency*=center/(c4*32.0);
       }
+      chan[i].freq=(int)CLAMP(round(frequency),0.0,65535.0);
+      rWrite16(addrbase+0x00,chan[i].freq);
+      chan[i].freqChanged=false;
+      chan[i].keyOn=false;
+      chan[i].keyOff=false;
     }
   }
 }
@@ -238,6 +234,7 @@ int DivPlatformS3W2::dispatch(DivCommand c) {
           chan[c.chan].freqChanged=true;
         }
       }
+      if (c.value!=DIV_NOTE_NULL) chan[c.chan].note=c.value;
       chan[c.chan].active=true;
       chan[c.chan].macroInit(ins);
       if (!parent->song.compatFlags.brokenOutVol && !chan[c.chan].std.vol.will) {
@@ -293,6 +290,10 @@ int DivPlatformS3W2::dispatch(DivCommand c) {
     case DIV_CMD_WAVE:
       chan[c.chan].wave=c.value;
       chan[c.chan].ws.changeWave1(chan[c.chan].wave);
+      break;
+    case DIV_CMD_PANNING: 
+      chan[c.chan].pan=(c.value>>4)*16+(c.value2>>4);
+      rWrite(addrbase+0x04,chan[c.chan].pan); // +0x04: Panpot (MSB: Left 4bit, LSB: Right 4bit)
       break;
     case DIV_CMD_NOTE_PORTA: {
       int destFreq=chan[c.chan].calcBaseFreq(c.value2);
@@ -413,6 +414,21 @@ bool DivPlatformS3W2::hasAcquireDirect() {
   return false;
 }
 
+DivChannelModeHints DivPlatformS3W2::getModeHints(int ch) {
+  DivChannelModeHints ret;
+  ret.count=1;
+  ret.hint[0]=ICON_FA_VOLUME_UP;
+  ret.type[0]=0;
+
+  if (chan[ch].pcm) ret.type[0]=4;
+  
+  return ret;
+}
+
+unsigned short DivPlatformS3W2::getPan(int ch) {
+  return (chan[ch].pan>>4)<<8|(chan[ch].pan&0xf);
+}
+
 const void* DivPlatformS3W2::getSampleMem(int index) {
   return (index==0)?sampleMem:NULL;
 }
@@ -504,6 +520,13 @@ void DivPlatformS3W2::poke(std::vector<DivRegWrite>& wlist) {
   for (DivRegWrite& i: wlist) rWrite(i.addr,i.val);
 }
 
+void DivPlatformS3W2::notifyPitchTable(int sample) {
+  // DivPitchTable's frequency-mode note reference is five octaves above
+  // Furnace's stored note numbering. Fold the /32 into the table scale,
+  // so non-linear pitch offsets/macros are added in Hz, not divided by 32.
+  pitchTable.init(parent->song.tuning,chipClock,CHIP_FREQBASE/32.0,0xffff,false,parent->song.compatFlags.linearPitch);
+}
+
 int DivPlatformS3W2::init(DivEngine* p, int channels, int sugRate, const DivConfig& flags) {
   parent=p;
   dumpWrites=false;
@@ -516,7 +539,7 @@ int DivPlatformS3W2::init(DivEngine* p, int channels, int sugRate, const DivConf
   }
   rate=48000;
   chipClock=48000;
-  pitchTable.init(parent->song.tuning,chipClock,CHIP_FREQBASE,0xffff,false,parent->song.compatFlags.linearPitch);
+  notifyPitchTable();
   sampleMemSize=0x100000;// 1024KB (1048576 bytes)
   sampleMem=new unsigned char[sampleMemSize];
   memset(sampleMem,0,sampleMemSize); 
