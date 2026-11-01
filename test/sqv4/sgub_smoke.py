@@ -90,9 +90,9 @@ def main():
         root = Path(temp)
         for variant, depth in [(0, 19), (1, 17), (2, 18)]:
             # Two fragments; non-unity fragment gain must survive export exactly.
-            container = b"SQV4" + bytes([2, variant, 1, 0]) + struct.pack("<II", 8363, 65)
+            container = b"SQV4" + bytes([3, variant, 1, 0]) + struct.pack("<II", 8363, 65)
             payload=32 if variant==0 else 24
-            container += bytes([128]) + bytes(payload) + bytes([255, 1]) + bytes(payload-1)
+            container += bytes([128, 0]) + bytes(payload) + bytes([255, 0, 1]) + bytes(payload-1)
             for chips in (1, 2):
                 fixture = replace_samples(sgub.song(chips=chips, pcm=True, conflict=chips==2), depth, container)
                 source = root / "source.fur"; dest = root / "output.sgub"
@@ -112,7 +112,7 @@ def main():
                     def addr(reg): return sum(regs[reg+i] << (16-i*8) for i in range(3))
                     assert regs[0x802] == 4 and regs[0x819] == 3
                     start, end, loop = addr(0x810), addr(0x813), addr(0x816)
-                    assert end-start == len(container) and loop-start == 17+payload
+                    assert end-start == len(container) and loop-start == 18+payload
                     expected=bytearray(container)
                     if chip: expected[16]=129
                     assert memory[start:end] == expected

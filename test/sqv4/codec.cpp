@@ -4,6 +4,7 @@
 #include "../../src/ta-log.h"
 #include <cassert>
 #include <cstdio>
+#include "v3_golden.h"
 
 // Standalone sample tests use the real codecs/serialization, with quiet logging.
 int writeLog(int, const char*, fmt::printf_args) { return 0; }
@@ -21,30 +22,32 @@ void configure(S3W2_Sound& sound, const std::vector<uint8_t>& bytes, unsigned lo
 }
 
 int main() {
-  // CPT32 golden H vector: 65 input samples [1..65], code 1 throughout.
+  // Compare encoder bytes against the upstream Rust v3 encoder at three fragment boundaries.
+  std::vector<int16_t> fixture(130);
+  for (int i=0;i<130;i++) fixture[i]=int(i*1777%65536)-32768;
+  for (unsigned variant=0;variant<3;variant++) {
+    auto bytes=sqv4::encode(fixture.data(),fixture.size(),8000,variant);
+    assert(bytes==upstreamGolden[variant]);
+    sqv4::Header h; std::vector<int16_t> decoded;
+    assert(sqv4::decode(bytes.data(),bytes.size(),decoded,h));
+    assert(decoded==upstreamDecoded[variant]);
+  }
   std::vector<int16_t> ramp(65);
   for (unsigned i=0;i<65;i++) ramp[i]=i+1;
   auto h=sqv4::encode(ramp.data(),65,8000,0);
-  assert(h.size()==82 && h[4]==2 && h[16]==255 && h[49]==255);
-  for (unsigned i=17;i<49;i++) assert(h[i]==0x11);
-  assert(h[50]==1);
-  sqv4::Header header;
-  std::vector<int16_t> decoded;
-  assert(sqv4::decode(h.data(),h.size(),decoded,header) && decoded==ramp);
-  // CPT32 golden L+ vector [12,35,75,147,275]: db 36, then zero padding.
   const int16_t lplus[]={12,35,75,147,275};
   auto plus=sqv4::encode(lplus,5,8000,2);
-  assert(plus.size()==41 && plus[17]==0xdb && plus[18]==0x36);
+  sqv4::Header header;
+  std::vector<int16_t> decoded;
+  assert(h.size()==16+2*34 && h[4]==3);
+  assert(sqv4::decode(h.data(),h.size(),decoded,header));
+  std::vector<int16_t> hDecoded=decoded;
   assert(sqv4::decode(plus.data(),plus.size(),decoded,header));
-  assert(std::equal(decoded.begin(),decoded.end(),lplus));
-  // Versioned L+ reconstruction and signed division toward zero.
-  auto legacy=plus; sqv4::write32(legacy.data()+12,1);
-  std::fill(legacy.begin()+17,legacy.end(),0); legacy[4]=1;
-  assert(sqv4::decode(legacy.data(),legacy.size(),decoded,header) && decoded[0]==9);
-  legacy[4]=2;
-  assert(sqv4::decode(legacy.data(),legacy.size(),decoded,header) && decoded[0]==1);
-  legacy[17]=4; legacy[16]=128;
-  assert(sqv4::decode(legacy.data(),legacy.size(),decoded,header) && decoded[0]==0);
+  std::vector<int16_t> plusDecoded=decoded;
+  auto legacy=h;
+  for (unsigned version: {1u,2u}) { legacy[4]=version; assert(!sqv4::inspect(legacy.data(),legacy.size(),header)); }
+  auto badIndex=h; badIndex[17]=89; assert(!sqv4::inspect(badIndex.data(),badIndex.size(),header));
+  auto badPadding=h; badPadding[16+33]|=0x80; assert(!sqv4::inspect(badPadding.data(),badPadding.size(),header));
   // Empty, truncated, trailing bytes, header fields and final padding.
   auto empty=sqv4::encode(nullptr,0,8000,1);
   assert(empty.size()==16 && sqv4::inspect(empty.data(),empty.size(),header));
@@ -95,18 +98,21 @@ int main() {
   assert(memcmp(ima.getCurBuf(),"SQV4",4)!=0);
   auto imaImage=ima.getSQV4(); assert(sqv4::inspect(imaImage.data(),imaImage.size(),header) && header.variant==0);
 
+  for (int revision=0;revision<2;revision++) {
   S3W2_Sound sound;
-  configure(sound,h,128+49,3);
-  for (int i=1;i<=65;i++) assert(sound.generateSample(0)==i/4);
-  assert(sound.generateSample(0)==65/4); // replay state before fragment 1
+  sound.setRevision(revision);
+  configure(sound,h,128+16+34,3);
+  for (int i=0;i<65;i++) assert(sound.generateSample(0)==hDecoded[i]/4);
+  assert(sound.generateSample(0)==hDecoded[63]/4);
   sound.writeRegister(0x80a,0); assert(sound.generateSample(0)==0);
   configure(sound,plus);
-  for (int expected: lplus) assert(sound.generateSample(0)==expected/4);
+  for (int expected: plusDecoded) assert(sound.generateSample(0)==expected/4);
   assert(sound.generateSample(0)==0 && sound.generateSample(0)==0);
-  configure(sound,h,128+50); assert(sound.generateSample(0)==0); // invalid loop
+  configure(sound,h,128+51); assert(sound.generateSample(0)==0); // invalid loop
   bad=h; bad[0]=0; configure(sound,bad); assert(sound.generateSample(0)==0);
   configure(sound,h); address(sound,0x813,PCM_RAM_SIZE+8); assert(sound.generateSample(0)==0);
   // PCM RAM mutation invalidates decoder state.
   configure(sound,h); sound.writePCMRAM(128,0); assert(sound.generateSample(0)==0);
+  }
   std::puts("SQV4 codec, sample conversion/persistence/undo and S3W2 playback passed");
 }

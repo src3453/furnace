@@ -131,7 +131,7 @@ struct DivSample {
   // - 12: C219 "µ-law" PCM
   // - 13: IMA ADPCM
   // - 14: 12-bit PCM (MultiPCM)
-  // - 17/18/19: SQV4L / SQV4L+ / SQV4H mono containers (v1/v2)
+  // - 17/18/19: SQV4L / SQV4L+ / SQV4H mono containers (v3)
   // - 16: 16-bit PCM
   DivSampleDepth depth;
   bool loop, brrEmphasis, brrNoFilter, dither;
@@ -320,7 +320,7 @@ struct DivSample {
   void render(unsigned int formatMask=0xffffffff);
 
   // SQV4 hardware image: native H/L/L+ retain their codes and fragment gains.
-  std::vector<unsigned char> getSQV4(unsigned int count=0xffffffff);
+  std::vector<unsigned char> getSQV4(unsigned int count=0xffffffff, unsigned version=3);
 
   /**
    * get the sample data for the current depth.

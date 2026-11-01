@@ -53,6 +53,7 @@ class DivPlatformS3W2: public DivDispatch {
     unsigned char* getRegisterPool();
     int getRegisterPoolSize();
     void reset();
+    void setFlags(const DivConfig& flags);
     void tick(bool sysTick=true);
     void muteChannel(int ch, bool mute);
     int getOutputCount();

@@ -85,7 +85,7 @@ void DivExportSGUB::run() {
             auto& writes=dispatch->getRegisterWrites();
             for (const auto& write:writes) {
               if (write.addr>=0x400) throw std::runtime_error("Invalid S3HS register write address");
-              stream.write(3,write.addr,(unsigned)write.val&255);
+              stream.write(3,0x400000u+write.addr,(unsigned)write.val&255);
             }
             writes.clear();
             if (e->cycles>0) stream.wait(e->cycles);

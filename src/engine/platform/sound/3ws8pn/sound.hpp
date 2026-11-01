@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <memory>
 #include <vector>
+#include <deque>
 
 /*
 3WS8PN (S3W2) Specification
@@ -22,13 +23,17 @@ Registers (all bytes are in big endian):
  - +0x00~0xFF: Wavetable Data (256 bytes)
 0x800-0x8FF: Channel Control Registers (8 channels x 32 bytes)
  - +0x00~0x01: Frequency (in Hertz, 16bit, in PCM Mode: Sample Rate (32x Frequency (ex. 64hz -> 0x0002)))
- - +0x02: Waveform Type (0: Wavetable, 1: PCM, 2: Noise, 3: DMA PCM (16bit), 4: SQV4, 5~: Reserved)
+ - +0x02: Waveform Type (0: Wavetable, 1: PCM, 2: Noise, 3: DMA PCM (16bit), 4: SQV4, 5: FIFO DAC on 3WS8PNA)
  - +0x03: Volume (0~255)
  - +0x04: Panpot (MSB: Left 4bit, LSB: Right 4bit)
  - +0x05: Waveform Modulation Type (MSB 5bit: Type, LSB 3bit: Target Channel (0~7))
  - +0x06~0x09: Modulation Depth/Parameter (depends on Modulation Type)
  - +0x0A: Any access in this register will reset the channel phase
  - +0x0B: Modulation Targeting Mode (bit0: 0=Absolute, 1=Relative, bit1~7: Reserved)
+  on 3WS8PNA:
+ - +0x0C/0x0D: FIFO DAC signed 16-bit data (high-byte latch / low-byte push)
+ - +0x0E/0x0F: FIFO queued sample count (2048 samples maximum)
+ - FIFO frequency: consume once every FREQUENCY+1 steps at 48kHz; fixed gain
   in PCM Mode:
  - +0x10~0x12: PCM Start Address (MSB 4bit: Reserved, LSB 20bit: Address)
  - +0x13~0x15: PCM End Address (MSB 4bit: Reserved, LSB 20bit: Address)
@@ -50,7 +55,8 @@ enum WaveformType {
     WAVEFORM_PCM = 1,
     WAVEFORM_NOISE = 2,
     WAVEFORM_DMA_PCM = 3,
-    WAVEFORM_SQV4 = 4
+    WAVEFORM_SQV4 = 4,
+    WAVEFORM_FIFO_DAC = 5
 };
 
 // 変調タイプ
@@ -83,8 +89,10 @@ struct Channel {
     
     sqv4::Header sqv4_header;
     sqv4::State sqv4_state;
-    uint32_t sqv4_next=0, sqv4_loop=0;
-    int16_t sqv4_sample=0;
+    uint32_t sqv4_next_frame=0, sqv4_loop=0;
+    // Adjacent decoded fragments remain available across an interpolation tap.
+    std::array<uint32_t,2> sqv4_cached_frame={{UINT32_MAX,UINT32_MAX}};
+    std::array<std::array<int16_t,64>,2> sqv4_frames={};
     bool sqv4_ready=false;
 
     // 内部状態
@@ -94,6 +102,10 @@ struct Channel {
     int16_t last_sample;        // 最後に出力したサンプル値
     bool active;                 // チャンネルが有効かどうか
     int slew_cur;               // スルーレート変調用の現在の値
+    std::deque<int16_t> fifo;
+    int16_t fifo_held=0;
+    uint32_t fifo_hold=0;
+    uint8_t fifo_sub=0, fifo_latch=0;
     
     // 波形テーブルデータ
     std::array<uint8_t, WAVETABLE_SIZE> wavetable;
@@ -112,6 +124,8 @@ public:
     ~S3W2_Sound();
     void initialize();
     void reset();
+    // 0: original 3WS8PN (default for existing songs), 1: 3WS8PNA.
+    void setRevision(int revision);
     void writeRegister(uint32_t address, uint8_t value);
     uint8_t readRegister(uint32_t address);
     // PCMRAM
@@ -121,6 +135,10 @@ public:
     int16_t generateSample(int ch); // routing function
 
 private:
+    bool revisionA=false;
+    void resetFIFO(Channel& c);
+    int16_t generateFIFOSample(int ch);
+    int32_t generateInterpolatedSample(int ch, bool pcm);
     // チャンネルデータ
     std::array<Channel, NUM_CHANNELS> channels;
     
@@ -133,7 +151,8 @@ private:
     int16_t generatePCMSample(int ch);
     int16_t generateNoiseSample(int ch);
     int16_t generateDMAPCMSample(int ch);
-    int16_t generateSQV4Sample(int ch);
+    int32_t generateSQV4Sample(int ch); // signed Q8.8
+    void ensureSQV4Frame(Channel& c, uint32_t target);
     int16_t applyModulation(int ch, int16_t& sample);
     void mixChannels(int16_t* left, int16_t* right);
     

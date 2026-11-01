@@ -178,7 +178,7 @@ void DivPlatformS3W2::tick(bool sysTick) {
             unsigned int loop=compressed?sampleOffSU[sNum]:0;
             if (sample->isLoopable()) {
               loop=sampleOffSU[sNum]+(compressed?
-                (sample->loopStart==0?0:16+(sample->loopStart/64)*(sample->depth==DIV_SAMPLE_DEPTH_SQV4H?33:25)):
+                (sample->loopStart==0?0:16+(sample->loopStart/63)*(sample->depth==DIV_SAMPLE_DEPTH_SQV4H?34:26)):
                 sample->loopStart);
             }
             rWrite24(addrbase+0x16,loop);
@@ -527,6 +527,10 @@ void DivPlatformS3W2::notifyPitchTable(int sample) {
   pitchTable.init(parent->song.tuning,chipClock,CHIP_FREQBASE/32.0,0xffff,false,parent->song.compatFlags.linearPitch);
 }
 
+void DivPlatformS3W2::setFlags(const DivConfig& flags) {
+  chip->setRevision(flags.getInt("chipType",0)==1?1:0);
+}
+
 int DivPlatformS3W2::init(DivEngine* p, int channels, int sugRate, const DivConfig& flags) {
   parent=p;
   dumpWrites=false;
@@ -548,6 +552,7 @@ int DivPlatformS3W2::init(DivEngine* p, int channels, int sugRate, const DivConf
   memset(sampleSQV4,0,sizeof(sampleSQV4));
   memset(sampleLenSU,0,sizeof(sampleLenSU));
   chip = new S3W2_Sound;
+  setFlags(flags);
   reset();
   return 8;
 }

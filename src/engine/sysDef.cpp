@@ -2736,6 +2736,18 @@ void DivEngine::registerSystems() {
     c64PostEffectHandlerMap
   );
   
+  sysDefs[DIV_SYSTEM_34SI22]=new DivSysDef(
+    _("34SI22"), NULL, 0xf9, 0, 2, 2, 2,
+    false, true, 0, false, (1U<<DIV_SAMPLE_DEPTH_8BIT)|(1U<<DIV_SAMPLE_DEPTH_16BIT)|(1U<<DIV_SAMPLE_DEPTH_SQV4H)|(1U<<DIV_SAMPLE_DEPTH_SQV4L)|(1U<<DIV_SAMPLE_DEPTH_SQV4L_PLUS), 0, 0,
+    _("Two-channel PCM and SQV4 one-shot playback interface."),
+    DivChanDefFunc({
+      DivChanDef(_("Channel 1"), "CH1", DIV_CH_PCM, DIV_INS_34SI22, DIV_INS_AMIGA),
+      DivChanDef(_("Channel 2"), "CH2", DIV_CH_PCM, DIV_INS_34SI22, DIV_INS_AMIGA)
+    }),
+    {},
+    {{0x20, {DIV_CMD_SAMPLE_FREQ, _("20xx: Set sample divider (00 to 0F; upper bits ignored; rate = 48000 / (divider + 1))")}}}
+  );
+
   sysDefs[DIV_SYSTEM_S3W2]=new DivSysDef(
     _("3WS8PN (S3W2)"), NULL, 0xfa, 0, 8, 8, 8,
     false, true, 0, false, (1U<<DIV_SAMPLE_DEPTH_8BIT)|(1U<<DIV_SAMPLE_DEPTH_SQV4H)|(1U<<DIV_SAMPLE_DEPTH_SQV4L)|(1U<<DIV_SAMPLE_DEPTH_SQV4L_PLUS), 256, 256,

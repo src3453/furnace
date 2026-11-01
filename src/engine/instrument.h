@@ -104,6 +104,7 @@ enum DivInstrumentType: unsigned short {
   DIV_INS_CPT100=67,
   DIV_INS_S3HS=68,
   DIV_INS_S3W2=69,
+  DIV_INS_34SI22=70,
   DIV_INS_MAX,
   DIV_INS_NULL
 };

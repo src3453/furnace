@@ -1188,6 +1188,7 @@ void FurnaceGUI::doAction(int what) {
       for (DivInstrumentType& i: tempTypeList) {
         if (i==DIV_INS_PCE ||
             i==DIV_INS_MSM6258 ||
+            i==DIV_INS_34SI22 ||
             i==DIV_INS_MSM6295 ||
             i==DIV_INS_ADPCMA ||
             i==DIV_INS_ADPCMB ||
@@ -1735,6 +1736,7 @@ void FurnaceGUI::doAction(int what) {
       for (DivInstrumentType& i: tempTypeList) {
         if (i==DIV_INS_PCE ||
             i==DIV_INS_MSM6258 ||
+            i==DIV_INS_34SI22 ||
             i==DIV_INS_MSM6295 ||
             i==DIV_INS_ADPCMA ||
             i==DIV_INS_ADPCMB ||

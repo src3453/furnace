@@ -146,5 +146,20 @@ void initSystemPresetsSpecialized(std::vector<FurnaceGUISysCategory>& sysCategor
       CH(DIV_SYSTEM_SUPERVISION, 1.0f, 0, "")
     }
   );
+  ENTRY(
+    _("CPT100 (S3F1)"), {
+      CH(DIV_SYSTEM_CPT100, 1.0f, 0, "")
+    }
+  );
+  ENTRY(
+    _("3HS88PWN4 (S3HS)"), {
+      CH(DIV_SYSTEM_S3HS, 1.0f, 0, "")
+    }
+  );
+  ENTRY(
+    _("3WS8PN (S3W2)"), {
+      CH(DIV_SYSTEM_S3W2, 1.0f, 0, "")
+    }
+  );
   CATEGORY_END;
 }

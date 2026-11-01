@@ -8476,6 +8476,7 @@ void FurnaceGUI::drawInsEdit() {
           drawInsSID3(ins);
         }
         if (ins->type==DIV_INS_MSM6258 ||
+            ins->type==DIV_INS_34SI22 ||
             ins->type==DIV_INS_MSM6295 ||
             ins->type==DIV_INS_ADPCMA ||
             ins->type==DIV_INS_ADPCMB ||
@@ -9335,6 +9336,12 @@ void FurnaceGUI::drawInsEdit() {
               macroList.push_back(FurnaceGUIMacroDesc(_("Panning"),&ins->std.panLMacro,0,2,32,uiColors[GUI_COLOR_MACRO_OTHER],false,NULL,NULL,true,panBits));
               macroList.push_back(FurnaceGUIMacroDesc(_("Phase Reset"),&ins->std.phaseResetMacro,0,1,32,uiColors[GUI_COLOR_MACRO_OTHER],false,NULL,NULL,true));
               macroList.push_back(FurnaceGUIMacroDesc(_("Clock Divider"),&ins->std.ex1Macro,0,1,160,uiColors[GUI_COLOR_MACRO_GLOBAL]));
+              break;
+            case DIV_INS_34SI22:
+              macroList.push_back(FurnaceGUIMacroDesc(_("Volume"),&ins->std.volMacro,0,15,160,uiColors[GUI_COLOR_MACRO_VOLUME]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Freq Divider"),&ins->std.dutyMacro,0,15,160,uiColors[GUI_COLOR_MACRO_OTHER]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Panning"),&ins->std.panLMacro,0,2,32,uiColors[GUI_COLOR_MACRO_OTHER],false,NULL,NULL,true,panBits));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Phase Reset"),&ins->std.phaseResetMacro,0,1,32,uiColors[GUI_COLOR_MACRO_OTHER],false,NULL,NULL,true));
               break;
             case DIV_INS_MSM6295:
               macroList.push_back(FurnaceGUIMacroDesc(_("Volume"),&ins->std.volMacro,0,8,160,uiColors[GUI_COLOR_MACRO_VOLUME]));

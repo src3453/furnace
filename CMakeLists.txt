@@ -904,6 +904,7 @@ src/engine/platform/cpt100.cpp
 src/engine/platform/s3hs.cpp
 src/engine/platform/3fs44u.cpp
 src/engine/platform/s3w2.cpp
+src/engine/platform/34si22.cpp
 
 
 src/engine/export/abstract.cpp

@@ -99,6 +99,7 @@
 #include "platform/s3hs.h"
 #include "platform/3fs44u.h"
 #include "platform/s3w2.h"
+#include "platform/34si22.h"
 #include "../ta-log.h"
 #include "song.h"
 
@@ -802,6 +803,9 @@ void DivDispatchContainer::init(DivSystem sys, DivEngine* eng, int chanCount, do
       break;
     case DIV_SYSTEM_3FS44U:
      dispatch=new DivPlatform3FS44U;
+      break;
+    case DIV_SYSTEM_34SI22:
+      dispatch=new DivPlatform34SI22;
       break;
     case DIV_SYSTEM_S3W2:
       dispatch=new DivPlatformS3W2;

@@ -1,18 +1,21 @@
-// SqueezVOX 4 v1/v2 container and ADPCM adapter.
+// SqueezVOX 4 v3 container and ADPCM adapter.
 // Contract: CPT32 doc/squeezvox/squeezvox4_spec_stub.md.
 #ifndef FURNACE_SQV4_H
 #define FURNACE_SQV4_H
 #include <algorithm>
 #include <cstdint>
 #include <cstring>
+#include <cstdlib>
 #include <limits>
 #include <vector>
 
 namespace sqv4 {
 struct Header {
-  unsigned version=2, variant=0, channels=1;
+  unsigned version=3, variant=0, channels=1;
   uint32_t rate=0, samples=0;
-  size_t stride() const { return variant==0?33:25; }
+  unsigned frameSamples() const { return 63; }
+  unsigned prefix() const { return 2; }
+  size_t stride() const { return variant==0?34:26; }
   unsigned bits() const { return variant==0?4:3; }
 };
 struct State { int predictor=0, index=0; };
@@ -22,8 +25,10 @@ inline uint32_t read32(const uint8_t* p) {
 inline void write32(uint8_t* p, uint32_t n) {
   for (unsigned i=0;i<4;i++) p[i]=n>>(8*i);
 }
-inline size_t fileSize(uint32_t samples, unsigned channels, unsigned variant) {
-  uint64_t size=16+((uint64_t(samples)+63)/64)*channels*(variant==0?33:25);
+inline size_t fileSize(uint32_t samples, unsigned channels, unsigned variant, unsigned version=3) {
+  if (version!=3) return 0;
+  uint64_t frames=63, stride=variant==0?34:26;
+  uint64_t size=16+((uint64_t(samples)+frames-1)/frames)*channels*stride;
   return size>std::numeric_limits<size_t>::max()?0:static_cast<size_t>(size);
 }
 inline unsigned codeAt(const uint8_t* payload, unsigned sample, unsigned bits) {
@@ -32,17 +37,21 @@ inline unsigned codeAt(const uint8_t* payload, unsigned sample, unsigned bits) {
   return code;
 }
 inline bool inspect(const uint8_t* data, size_t size, Header& h) {
-  if (size<16 || !data || std::memcmp(data,"SQV4",4) || (data[4]!=1 && data[4]!=2) ||
+  if (size<16 || !data || std::memcmp(data,"SQV4",4) || data[4]!=3 ||
       data[5]>2 || (data[6]!=1 && data[6]!=2) || data[7] || !read32(data+8)) return false;
   h.version=data[4]; h.variant=data[5]; h.channels=data[6];
   h.rate=read32(data+8); h.samples=read32(data+12);
-  size_t expected=fileSize(h.samples,h.channels,h.variant);
+  size_t expected=fileSize(h.samples,h.channels,h.variant,h.version);
   if (!expected || size!=expected) return false;
-  if (h.samples%64) {
-    size_t offset=size-h.channels*h.stride();
-    for (unsigned ch=0;ch<h.channels;ch++)
-      for (unsigned i=h.samples%64;i<64;i++)
-        if (codeAt(data+offset+ch*h.stride()+1,i,h.bits())) return false;
+  size_t fragmentCount=(size-16)/h.stride();
+  for (size_t fragment=0;fragment<fragmentCount;fragment++) {
+    const uint8_t* f=data+16+fragment*h.stride();
+    if (h.version==3 && f[1]>88) return false;
+    size_t frame=fragment/h.channels;
+    unsigned count=std::min<uint32_t>(h.frameSamples(),h.samples-uint32_t(frame*h.frameSamples()));
+    const uint8_t* payload=f+h.prefix();
+    unsigned used=count*h.bits(), payloadBits=unsigned((h.stride()-h.prefix())*8);
+    for (unsigned bit=used;bit<payloadBits;bit++) if ((payload[bit/8]>>(bit%8))&1) return false;
   }
   return true;
 }
@@ -56,8 +65,8 @@ inline int delta(const Header& h, const State& s, unsigned code) {
     diff=(v>>3)+((code&1)?v>>2:0)+((code&2)?v>>1:0)+((code&4)?v:0);
     return (code&8)?-diff:diff;
   }
-  static const int levels[3][4]={{1,3,5,7},{10,11,12,14},{1,2,3,14}};
-  diff=(levels[h.variant==1?0:(h.version==1?1:2)][code&3]*v+4)/8;
+  static const int levels[2][4]={{1,3,5,7},{1,2,3,14}};
+  diff=(levels[h.variant==1?0:1][code&3]*v+4)/8;
   return (code&4)?-diff:diff;
 }
 inline int decodeCode(const Header& h, State& s, unsigned code) {
@@ -83,20 +92,41 @@ inline unsigned encodeCode(const Header& h, State& s, int input) {
   decodeCode(h,s,code);
   return code;
 }
-inline std::vector<uint8_t> encode(const int16_t* pcm, uint32_t samples, uint32_t rate, unsigned variant) {
-  if (!rate || variant>2 || (samples && !pcm)) return {};
-  Header h; h.variant=variant; h.rate=rate; h.samples=samples;
-  size_t size=fileSize(samples,1,variant); if (!size) return {};
+inline int applyVolume(int value, int volume, unsigned version) {
+  int product=value*volume;
+  (void)version;
+  int rounded=(std::abs(product)+127)/255;
+  return product<0?-rounded:rounded;
+}
+inline std::vector<uint8_t> encode(const int16_t* pcm, uint32_t samples, uint32_t rate, unsigned variant, unsigned version=3) {
+  if (!rate || variant>2 || version!=3 || (samples && !pcm)) return {};
+  Header h; h.version=version; h.variant=variant; h.rate=rate; h.samples=samples;
+  size_t size=fileSize(samples,1,variant,version); if (!size) return {};
   std::vector<uint8_t> out(size,0);
-  std::memcpy(out.data(),"SQV4",4); out[4]=2; out[5]=variant; out[6]=1;
+  std::memcpy(out.data(),"SQV4",4); out[4]=version; out[5]=variant; out[6]=1;
   write32(out.data()+8,rate); write32(out.data()+12,samples);
-  State state;
-  for (uint64_t first=0;first<samples;first+=64) {
-    uint8_t* fragment=out.data()+16+(first/64)*h.stride(); fragment[0]=255;
-    for (unsigned i=0;i<64 && first+i<samples;i++) {
-      unsigned code=encodeCode(h,state,pcm[first+i]);
-      for (unsigned b=0;b<h.bits();b++) fragment[1+(i*h.bits()+b)/8]|=((code>>b)&1)<<((i*h.bits()+b)%8);
+  for (uint64_t first=0;first<samples;first+=h.frameSamples()) {
+    unsigned count=unsigned(std::min<uint64_t>(h.frameSamples(),samples-first));
+    uint8_t* f=out.data()+16+(first/h.frameSamples())*h.stride();
+    int volume=255; unsigned codes[64]={};
+    {
+      int peak=0; for (unsigned i=0;i<count;i++) peak=std::max(peak,std::abs(int(pcm[first+i])));
+      volume=std::min(255,(peak*255+32766)/32767); f[0]=volume;
+      uint64_t best=std::numeric_limits<uint64_t>::max();
+      if (volume) for (int index=0;index<=88;index++) {
+        State state; state.index=index; uint64_t error=0; unsigned trial[64]={};
+        for (unsigned i=0;i<count;i++) {
+          int n=int(pcm[first+i])*255, rounded=(std::abs(n)+volume/2)/volume;
+          int norm=std::max(-32768,std::min(32767,n<0?-rounded:rounded));
+          trial[i]=encodeCode(h,state,norm);
+          int64_t diff=int(pcm[first+i])-applyVolume(state.predictor,volume,3);
+          error+=uint64_t(diff*diff);
+        }
+        if (error<best) { best=error; f[1]=uint8_t(index); std::copy(trial,trial+count,codes); }
+      }
     }
+    for (unsigned i=0;i<count;i++) for (unsigned b=0;b<h.bits();b++)
+      f[h.prefix()+(i*h.bits()+b)/8]|=((codes[i]>>b)&1)<<((i*h.bits()+b)%8);
   }
   return out;
 }
@@ -105,8 +135,9 @@ inline bool decode(const uint8_t* data, size_t size, std::vector<int16_t>& out, 
   out.resize(size_t(h.samples)*h.channels);
   State state[2];
   for (uint32_t i=0;i<h.samples;i++) for (unsigned ch=0;ch<h.channels;ch++) {
-    const uint8_t* f=data+16+(size_t(i/64)*h.channels+ch)*h.stride();
-    out[size_t(i)*h.channels+ch]=decodeCode(h,state[ch],codeAt(f+1,i%64,h.bits()))*f[0]/255;
+    const uint8_t* f=data+16+(size_t(i/h.frameSamples())*h.channels+ch)*h.stride();
+    if (h.version==3 && i%h.frameSamples()==0) { state[ch]=State(); state[ch].index=f[1]; }
+    out[size_t(i)*h.channels+ch]=applyVolume(decodeCode(h,state[ch],codeAt(f+h.prefix(),i%h.frameSamples(),h.bits())),f[0],h.version);
   }
   return true;
 }

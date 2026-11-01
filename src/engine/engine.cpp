@@ -422,6 +422,10 @@ void DivEngine::renderSamples(int whichSample) {
     formatMask|=s->sampleFormatMask;
   }
 
+  // SQV4 is selected as a native sample depth and rendered explicitly on
+  // conversion. Avoid re-encoding every PCM sample into all SQV4 variants.
+  formatMask &= ~((1U<<DIV_SAMPLE_DEPTH_SQV4H)|(1U<<DIV_SAMPLE_DEPTH_SQV4L)|(1U<<DIV_SAMPLE_DEPTH_SQV4L_PLUS));
+
   // step 1: render samples
   if (whichSample==-1) {
     for (int i=0; i<song.sampleLen; i++) {
@@ -950,6 +954,7 @@ void DivEngine::delUnusedSamples() {
   for (DivInstrument* i: song.ins) {
     if ((i->type==DIV_INS_PCE && i->amiga.useSample) ||
         i->type==DIV_INS_MSM6258 ||
+        i->type==DIV_INS_34SI22 ||
         i->type==DIV_INS_MSM6295 ||
         i->type==DIV_INS_ADPCMA ||
         i->type==DIV_INS_ADPCMB ||

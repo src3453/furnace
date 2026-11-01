@@ -257,7 +257,7 @@ bool DivSample::isLoopable() {
 
 int DivSample::getSampleOffset(int offset, int length, DivSampleDepth depth) {
   if (divSampleIsSQV4(depth)) {
-    return (length>0 && offset==length)?sqv4::fileSize(length,1,divSampleSQV4Variant(depth)):16+(std::max(0,offset)/64)*(depth==DIV_SAMPLE_DEPTH_SQV4H?33:25);
+    return (length>0 && offset==length)?sqv4::fileSize(length,1,divSampleSQV4Variant(depth)):16+(std::max(0,offset)/63)*(depth==DIV_SAMPLE_DEPTH_SQV4H?34:26);
   }
   if ((length==0) || (offset==length)) {
     int off=offset;
@@ -666,7 +666,7 @@ bool DivSample::initInternal(DivSampleDepth d, int count) {
       delete[] data;
       length=sqv4::fileSize(count,1,divSampleSQV4Variant(d));
       data=new unsigned char[length]();
-      memcpy(data,"SQV4",4); data[4]=2; data[5]=divSampleSQV4Variant(d); data[6]=1;
+      memcpy(data,"SQV4",4); data[4]=3; data[5]=divSampleSQV4Variant(d); data[6]=1;
       sqv4::write32(data+8,centerRate>0?centerRate:8363); sqv4::write32(data+12,count);
       break;
     }
@@ -898,6 +898,8 @@ bool DivSample::insert(unsigned int pos, unsigned int length) {
 }
 
 void DivSample::convert(DivSampleDepth newDepth, unsigned int formatMask) {
+  // Only the requested SQV4 variant is needed; v3 encoding searches 89 indices.
+  formatMask &= ~((1U<<DIV_SAMPLE_DEPTH_SQV4H)|(1U<<DIV_SAMPLE_DEPTH_SQV4L)|(1U<<DIV_SAMPLE_DEPTH_SQV4L_PLUS));
   render(formatMask|(1U<<newDepth));
   depth=newDepth;
   switch (depth) {
@@ -1638,22 +1640,23 @@ void DivSample::render(unsigned int formatMask) {
   }
 }
 
-std::vector<unsigned char> DivSample::getSQV4(unsigned int count) {
+std::vector<unsigned char> DivSample::getSQV4(unsigned int count, unsigned version) {
   count=std::min(count,samples);
   if (divSampleIsSQV4(depth)) {
-    const uint8_t* data=(const uint8_t*)getCurBuf();
-    sqv4::Header h;
+    const uint8_t* data=(const uint8_t*)getCurBuf(); sqv4::Header h;
     if (!sqv4::inspect(data,getCurBufLen(),h) || h.channels!=1 || h.samples!=samples) return {};
-    std::vector<uint8_t> out(data,data+sqv4::fileSize(count,1,h.variant));
+    if (version!=3) return {};
+    std::vector<uint8_t> out(data,data+sqv4::fileSize(count,1,h.variant,h.version));
     sqv4::write32(out.data()+8,centerRate>0?centerRate:8363);
     sqv4::write32(out.data()+12,count);
-    if (count%64) {
-      uint8_t* last=out.data()+out.size()-h.stride()+1;
-      for (unsigned bit=(count%64)*h.bits();bit<64*h.bits();bit++) last[bit/8]&=~(1<<(bit%8));
+    if (count%h.frameSamples()) {
+      uint8_t* last=out.data()+out.size()-h.stride()+h.prefix();
+      unsigned payloadBits=unsigned((h.stride()-h.prefix())*8);
+      for (unsigned bit=(count%h.frameSamples())*h.bits();bit<payloadBits;bit++) last[bit/8]&=~(1<<(bit%8));
     }
     return out;
   }
-  return sqv4::encode(data16,count,centerRate>0?centerRate:8363,0);
+  return sqv4::encode(data16,count,centerRate>0?centerRate:8363,0,version);
 }
 
 void* DivSample::getCurBuf() {

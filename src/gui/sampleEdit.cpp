@@ -442,6 +442,10 @@ void FurnaceGUI::drawSampleEdit() {
               MAX_RATE("C219",dispatch->rate);
             }
             break;
+          case DIV_SYSTEM_34SI22:
+            if (sample->loop) SAMPLE_WARN(warnLoop,_("34SI22: samples cannot loop"));
+            if (dispatch!=NULL) MAX_RATE("34SI22",48000);
+            break;
           case DIV_SYSTEM_MSM6295:
             if (sample->loop) {
               SAMPLE_WARN(warnLoop,_("MSM6295: samples can't loop"));

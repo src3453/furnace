@@ -2120,6 +2120,7 @@ void DivInstrument::putInsData2(SafeWriter* w, bool fui, const DivSong* song, bo
         featureSM=true;
         featureSL=true;
         break;
+      case DIV_INS_34SI22:
       case DIV_INS_MSM6295:
         featureSM=true;
         featureSL=true;

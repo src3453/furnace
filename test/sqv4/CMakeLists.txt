@@ -19,3 +19,13 @@ else()
 endif()
 enable_testing()
 add_test(NAME sqv4_codec_sample_core COMMAND sqv4_check)
+
+add_executable(s3w2_revision_check revision.cpp
+  ${ROOT}/src/engine/platform/sound/3ws8pn/sound.cpp)
+target_compile_features(s3w2_revision_check PRIVATE cxx_std_17)
+if(MSVC)
+  target_compile_options(s3w2_revision_check PRIVATE /UNDEBUG /utf-8)
+else()
+  target_compile_options(s3w2_revision_check PRIVATE -UNDEBUG)
+endif()
+add_test(NAME s3w2_revisions COMMAND s3w2_revision_check)

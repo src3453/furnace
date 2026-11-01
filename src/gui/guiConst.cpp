@@ -210,6 +210,7 @@ const char* insTypes[DIV_INS_MAX+1][3]={
   {"CPT100",ICON_FA_MICROCHIP,ICON_FUR_INS_CPT100},
   {"3HS88PWN4",ICON_FA_SIGNAL,ICON_FA_QUESTION},
   {"3WS8PN",ICON_FA_BAR_CHART,ICON_FA_QUESTION},
+  {"34SI22",ICON_FA_VOLUME_UP,ICON_FA_QUESTION},
   {NULL,ICON_FA_QUESTION,ICON_FA_QUESTION}
 };
 
@@ -1118,6 +1119,7 @@ const FurnaceGUIColorDef guiColors[GUI_COLOR_MAX]={
   D(GUI_COLOR_INSTR_CPT100,_N("CPT100"),ImVec4(1.0f,1.0f,0.0f,1.0f)),
   D(GUI_COLOR_INSTR_S3HS,_N("S3HS"),ImVec4(0.4f,0.7f,1.0f,1.0f)),
   D(GUI_COLOR_INSTR_S3W2,_N("S3W2"),ImVec4(0.4f,1.0f,0.4f,1.0f)),
+  D(GUI_COLOR_INSTR_34SI22,_N("34SI22"),ImVec4(0.4f,0.9f,0.8f,1.0f)),
   D(GUI_COLOR_INSTR_UNKNOWN,_N("Other/Unknown"),ImVec4(0.3f,0.3f,0.3f,1.0f)),
 
 
@@ -1387,6 +1389,7 @@ const int availableSystems[]={
   DIV_SYSTEM_MULTIPCM,
   DIV_SYSTEM_S3HS,
   DIV_SYSTEM_S3W2,
+  DIV_SYSTEM_34SI22,
   0 // don't remove this last one!
 };
 
@@ -1500,6 +1503,7 @@ const int chipsSpecial[]={
 
 // sample
 const int chipsSample[]={
+  DIV_SYSTEM_34SI22,
   DIV_SYSTEM_SEGAPCM,
   DIV_SYSTEM_AMIGA,
   DIV_SYSTEM_QSOUND,

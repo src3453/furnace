@@ -16,7 +16,11 @@ void write(const char* path, const std::vector<uint8_t>& data) {
 }
 int main() {
   static DivEngine engine;
+  // File loading initializes the system registry without starting audio or
+  // touching the user's configuration. An invalid header leaves the song alone.
+  assert(!engine.load(new unsigned char[32](),32));
   engine.song.systemLen=1; engine.song.system[0]=DIV_SYSTEM_S3W2;
+  engine.song.systemChans[0]=engine.song.chans=8;
   const char* path="import.sqv4";
   const int16_t pcm[]={12,35,75,147,275};
   for (unsigned variant=0;variant<3;variant++) {
@@ -38,10 +42,8 @@ int main() {
     assert(reimported[0]->getCurBufLen()==bytes.size());
     assert(!memcmp(reimported[0]->getCurBuf(),bytes.data(),bytes.size()));
     delete reimported[0];
-    auto legacy=bytes; legacy[4]=1; write(path,legacy);
-    auto old=engine.sampleFromFile(path); assert(old.size()==1 && old[0]->depth==sample->depth);
-    assert(old[0]->getCurBufLen()==legacy.size());
-    assert(!memcmp(old[0]->getCurBuf(),legacy.data(),legacy.size())); delete old[0];
+    auto legacy=bytes; legacy[4]=2; write(path,legacy);
+    assert(engine.sampleFromFile(path).empty());
     engine.song.sample.push_back(sample); engine.song.sampleLen=engine.song.sample.size();
   }
   // Ordinary IMA remains its own format and uses the S3W2 PCM fallback.
@@ -77,7 +79,47 @@ int main() {
   engine.song.sample[2]->loop=true; engine.song.sample[2]->loopStart=0; engine.song.sample[2]->loopEnd=5;
   dispatch.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); dispatch.tick();
   assert(regs[0x802]==4 && regs[0x819]==3);
+  // Chip configuration reaches the core at init and during live changes.
+  // Furnace keeps its normal wave/PCM instrument path in either revision.
+  auto revisionOutput=[&]() {
+    dispatch.reset();
+    for (int i=0;i<256;i++) dispatch.poke(i,i==1?128:0);
+    dispatch.poke(0x801,24);
+    dispatch.poke(0x803,4);
+    dispatch.poke(0x804,0xFF);
+    short left[1],right[1]; short* output[]={left,right};
+    dispatch.acquire(output,1);
+    assert(left[0]==right[0]);
+    return left[0];
+  };
+  int original=revisionOutput();
+  DivConfig flags;
+  flags.set("chipType",1);
+  dispatch.setFlags(flags);
+  int interpolated=revisionOutput();
+  assert(interpolated>original);
+  dispatch.setFlags(DivConfig());
+  assert(revisionOutput()==original);
   dispatch.quit();
+  DivPlatformS3W2 revisionA;
+  revisionA.init(&engine,8,48000,flags);
+  revisionA.poke(0x802,5); revisionA.poke(0x80C,0x10); revisionA.poke(0x80D,0);
+  short left[1],right[1]; short* output[]={left,right};
+  revisionA.acquire(output,1);
+  assert(left[0]==1024 && right[0]==1024); // FIFO fixed gain through acquire
+  revisionA.quit();
+  engine.song.systemFlags[0].set("chipType",1);
+  auto saved=engine.saveFur(); assert(saved);
+  auto data=new unsigned char[saved->size()];
+  size_t size=saved->size();
+  memcpy(data,saved->getFinalBuf(),size);
+  saved->finish(); delete saved;
+  static DivEngine reloaded;
+  bool loaded=reloaded.load(data,size);
+  if (!loaded) fprintf(stderr,"Reload failed: %s\n",reloaded.getLastError().c_str());
+  assert(loaded);
+  assert(reloaded.song.system[0]==DIV_SYSTEM_S3W2);
+  assert(reloaded.song.systemFlags[0].getInt("chipType",0)==1);
   remove(path); remove("export.sqv4");
   puts("SQV4 mono import, stereo/error rejection, save/reimport and S3W2 RAM upload passed");
 }

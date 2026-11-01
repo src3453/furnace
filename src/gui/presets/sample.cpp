@@ -122,5 +122,10 @@ void initSystemPresetsSample(std::vector<FurnaceGUISysCategory>& sysCategories) 
       CH(DIV_SYSTEM_MULTIPCM, 1.0f, 0, "")
     }
   );
+  ENTRY(
+    _("34SI22"), {
+      CH(DIV_SYSTEM_34SI22, 1.0f, 0, "")
+    }
+  );
   CATEGORY_END;
 }

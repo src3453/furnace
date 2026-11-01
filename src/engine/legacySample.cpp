@@ -39,6 +39,7 @@ bool DivEngine::convertLegacySampleMode() {
   for (DivInstrument* ins: song.ins) {
     bool canUse=false;
     if (ins->type==DIV_INS_MSM6258 ||
+        ins->type==DIV_INS_34SI22 ||
         ins->type==DIV_INS_MSM6295 ||
         ins->type==DIV_INS_ADPCMA ||
         ins->type==DIV_INS_ADPCMB ||

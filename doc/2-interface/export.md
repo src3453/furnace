@@ -146,7 +146,7 @@ With a song containing only one or two **3WS8PN (S3W2)** chips, or one
 requires one **3WS88PWN4 WASM expansion card in slot 0**. The SGUB format
 reserves targets for all eight expansion slots, while this exporter currently
 supports only slot 0.
-For S3W2, the first chip maps to SGU0 and the second to SGU1; a single-chip song silences SGU1. For S3HS, PCM RAM is copied to the card and register writes target slot 0.
+For S3W2, the first chip maps to SGU0 and the second to SGU1; a single-chip song silences SGU1. For S3HS, PCM RAM is copied to card offset `0x000000`, while register writes map the S3HS register offset to card offset `0x400000 + register offset` in slot 0.
 This exports the selected subsong from order zero through its first end/loop.
 
 Command line:

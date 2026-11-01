@@ -2842,6 +2842,42 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
       }
       break;
     }
+    case DIV_SYSTEM_34SI22: {
+      supportsCustomRate=false;
+      bool largeSampleMemory=flags.getBool("largeSampleMemory",false);
+      ImGui::Text(_("Sample memory:"));
+      ImGui::Indent();
+      if (ImGui::RadioButton(_("1 MiB (CPT32)"),!largeSampleMemory)) {
+        largeSampleMemory=false; altered=true; mustRender=true;
+      }
+      if (ImGui::RadioButton(_("16 MiB (24-bit address space)"),largeSampleMemory)) {
+        largeSampleMemory=true; altered=true; mustRender=true;
+      }
+      ImGui::Unindent();
+      if (altered) e->lockSave([&]() { flags.set("largeSampleMemory",largeSampleMemory); });
+      break;
+    }
+    case DIV_SYSTEM_S3W2: {
+      supportsCustomRate=false;
+      int chipType=flags.getInt("chipType",0)==1?1:0;
+      ImGui::Text(_("Chip revision:"));
+      ImGui::Indent();
+      if (ImGui::RadioButton("3WS8PN",chipType==0)) {
+        chipType=0;
+        altered=true;
+      }
+      if (ImGui::RadioButton("3WS8PNA",chipType==1)) {
+        chipType=1;
+        altered=true;
+      }
+      ImGui::Unindent();
+      if (altered) {
+        e->lockSave([&]() {
+          flags.set("chipType",chipType);
+        });
+      }
+      break;
+    }
     case DIV_SYSTEM_S3HS: {
       supportsCustomRate=false;      
       bool sysEnableComp=flags.getBool("enableComp",false);
