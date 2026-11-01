@@ -2754,17 +2754,6 @@ void DivEngine::registerSystems() {
     waveOnlyEffectHandlerMap
   );
 
-  sysDefs[DIV_SYSTEM_3FS44U]=new DivSysDef(
-    _("3FS44U (S3F1u)"), NULL, 0xfb, 0, 4, 4, 4,
-    false, true, 0, false, 0, 0, 0,
-    _("Basically CPT100, but lack of wavetable channels."),
-    DivChanDefFunc({
-      DivChanDef(_("FM 1"), "FM1", DIV_CH_FM, DIV_INS_CPT100),
-      DivChanDef(_("FM 2"), "FM2", DIV_CH_FM, DIV_INS_CPT100),
-      DivChanDef(_("FM 3"), "FM3", DIV_CH_FM, DIV_INS_CPT100),
-      DivChanDef(_("FM 4"), "FM4", DIV_CH_FM, DIV_INS_CPT100)
-    })
-  );
   //const EffectHandler suCutoffHandler(DIV_CMD_C64_FINE_CUTOFF, _("4xxx: Set cutoff (0 to FFF)"), effectValLong<12>);
   EffectHandlerMap s3hsEffectHandlerMap = {
     {0x10, {DIV_CMD_S3HS_OP_VOLUME, _("10xx: Set volume of operator 1"), constVal<0>, effectVal}},
@@ -2824,6 +2813,38 @@ void DivEngine::registerSystems() {
     }),
     {},
     s3hsEffectHandlerMap
+  );
+
+  // 3HS816 has no PCM channels, so the filter effects do not apply.
+  EffectHandlerMap hs816EffectHandlerMap=s3hsEffectHandlerMap;
+  hs816EffectHandlerMap.erase(0x30);
+  hs816EffectHandlerMap.erase(0x31);
+  hs816EffectHandlerMap.erase(0x32);
+
+  sysDefs[DIV_SYSTEM_3HS816]=new DivSysDef(
+    _("3HS816"), NULL, 0xfb, 0, 16, 16, 16,
+    false, true, 0, false, 0, 32, 256,
+    _("16 channels of the 3HS88PWN4's harmonic synthesizer, without PCM or effects. Song wavetables 0 to 3 are its user waves A to D."),
+    DivChanDefFunc({
+      DivChanDef(_("HS 1"), "H1", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 2"), "H2", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 3"), "H3", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 4"), "H4", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 5"), "H5", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 6"), "H6", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 7"), "H7", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 8"), "H8", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 9"), "H9", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 10"), "H10", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 11"), "H11", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 12"), "H12", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 13"), "H13", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 14"), "H14", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 15"), "H15", DIV_CH_FM, DIV_INS_S3HS),
+      DivChanDef(_("HS 16"), "H16", DIV_CH_FM, DIV_INS_S3HS)
+    }),
+    {},
+    hs816EffectHandlerMap
   );
 
   sysDefs[DIV_SYSTEM_NAMCO_POLEPOS]=new DivSysDef(

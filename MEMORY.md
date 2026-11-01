@@ -84,3 +84,30 @@ wave audio, repeat resets, core Slew semantics and existing SGUB playback.
 - Validation: the extended SQV4 codec/sample CTest passed for H/L/L+, including
   native H conversion, FUR persistence and undo. The application rebuild was
   stopped/skipped at the user's request because another build was running.
+
+## Integer 3HS88PWN4 core and 3HS816 (2026-11-02)
+- S3HS (3HS88PWN4) and the new 3HS816 run on integer-only models vendored in
+  `src/engine/platform/sound/3hs/` from the CPT32 repository's `chips/3hs816`
+  and `chips/3hs88pwn4`. Change the model there (spec `doc/spec_3HS816.md`,
+  legacy comparison tests) and copy `include/` and `src/` back; do not edit
+  the vendored copy. The float `sound/s3hs88pwn4` core was removed; recover it
+  from commit 0889f291d if the CPT32 legacy comparison needs it.
+- The old `resetGate()`/`wtSync()` calls are register writes now: gate (+1E)
+  = 1 restarts envelopes/phases (Furnace note-on wrote it right after
+  resetGate anyway), WT +8 is the sync strobe. SGUB captures them, so S3HS
+  exports gain these writes.
+- 3HS816 took the 3FS44U enum slot and file ID 0xFB; 3FS44U is gone. Its 16
+  channels use DIV_INS_S3HS; song wavetables 0..3 are its user waves A..D
+  (`notifyWaveChange`). It keeps S3HS's carrier volume table (including its
+  odd rows) so shared instruments match; S3HS note-on still scales operator
+  volume by /256 where 3HS816 uses /255 (a 0.4 % level difference).
+- S3HS effects 18xx-1Fxx wrote the operator index instead of the wave into
+  the nibble; fixed to use the effect value.
+- `python test/3hs/render_check.py build/Release/furnace.exe --reference
+  <older furnace.exe>` renders FUR fixtures: pitch, every 3HS816 channel,
+  pan, FM, user wave, shared instrument, and S3HS A/B against the float core
+  (sine identical, FM 37 dB, PCM 60 dB). Use the interpolated zero-crossing
+  estimator; counting crossings misread the pitch. Output removes DC, so a
+  constant user wave cannot be checked as DC.
+- `test/sgub/smoke.py` already failed before this change: it asserts the v1
+  header while the writer emits v2/v3.

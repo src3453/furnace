@@ -142,7 +142,7 @@ const char* aboutLine[]={
   _N("adpcm by superctr"),
   _N("adpcm-xq by David Bryant"),
   _N("3HS88PWN4 (s3hs_core) by src3453"),
-  _N("CPT100, 3FS44U by src3453"),
+  _N("CPT100, 3HS816 by src3453"),
   _N("Nuked-OPL3/OPLL/OPM/OPN2/PSG by nukeykt"),
   _N("YM3812-LLE, YMF262-LLE, YMF276-LLE and YM2608-LLE by nukeykt"),
   _N("ESFMu (modified version) by Kagamiin~"),

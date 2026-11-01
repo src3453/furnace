@@ -1,4 +1,5 @@
-#include "sound/s3hs88pwn4/sound.cpp"
+#include "sound/3hs/3hs88pwn4/include/hs88/registers.hpp"
+#include <vector>
 #include "../waveSynth.h"
 #include "../dispatch.h"
 
@@ -63,7 +64,9 @@ class DivPlatformS3HS: public DivDispatch {
   int EQlo;
   int EQmid;
   int EQhi;
-  S3HS_sound* cpt;
+  hs88::Engine* chip;
+  hs88::RegisterInterface* chipRegs;
+  std::vector<int> oscTap[12];
   DivPitchTable pitchTable;
   unsigned char regPool[1024];
   DivMemoryComposition memCompo;
@@ -118,6 +121,7 @@ class DivPlatformS3HS: public DivDispatch {
     void renderSamples(int chipID);
     void doWrite(unsigned int addr, unsigned char data);
     void writeOpVolumes(int channel, int channelVolume, int mode, int* opVolumes);
+    void loadSampleMemory();
     void setFlags(const DivConfig& flags);
     ~DivPlatformS3HS();
 };

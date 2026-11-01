@@ -296,8 +296,8 @@ const char* FurnaceGUI::getSystemPartNumber(DivSystem sys, DivConfig& flags) {
     case DIV_SYSTEM_CPT100:
       return "S3F1";
       break;
-    case DIV_SYSTEM_3FS44U:
-      return "S3F1u";
+    case DIV_SYSTEM_3HS816:
+      return "3HS816";
       break;
     default:
       return FurnaceGUI::getSystemName(sys);
