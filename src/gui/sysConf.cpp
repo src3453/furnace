@@ -2859,7 +2859,8 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
     }
     case DIV_SYSTEM_S3W2: {
       supportsCustomRate=false;
-      int chipType=flags.getInt("chipType",0)==1?1:0;
+      int chipType=flags.getInt("chipType",0);
+      if (chipType<0 || chipType>2) chipType=0;
       ImGui::Text(_("Chip revision:"));
       ImGui::Indent();
       if (ImGui::RadioButton("3WS8PN",chipType==0)) {
@@ -2868,6 +2869,10 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
       }
       if (ImGui::RadioButton("3WS8PNA",chipType==1)) {
         chipType=1;
+        altered=true;
+      }
+      if (ImGui::RadioButton("3WS8PNB",chipType==2)) {
+        chipType=2;
         altered=true;
       }
       ImGui::Unindent();

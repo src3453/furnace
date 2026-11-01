@@ -343,6 +343,7 @@ enum DivDispatchCmds {
   DIV_CMD_S3HS_OP_FREQ_FU, // (OP, value)
   DIV_CMD_S3HS_OP_FREQ_FL, // (OP, value)
   DIV_CMD_S3HS_FILTER, // (Reg, value)
+  DIV_CMD_S3W2_SAMPLE_CONTROL, // (value)
 
   DIV_CMD_MAX
 };

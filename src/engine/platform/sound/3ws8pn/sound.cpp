@@ -51,6 +51,7 @@ void S3W2_Sound::resetChannel(int ch)
     c.pcm_end_addr = 0;
     c.pcm_loop_addr = 0;
     c.pcm_control = 0;
+    c.sample_control = 0;
     c.phase = 0.0;
     c.sqv4_ready = false;
     c.old_phase = 0;
@@ -71,11 +72,14 @@ void S3W2_Sound::resetFIFO(Channel& c) {
 }
 
 void S3W2_Sound::setRevision(int revision) {
-    bool next=revision==1;
-    if (next==revisionA) return;
-    revisionA=next;
+    bool nextA=revision>=1;
+    bool nextB=revision>=2;
+    if (nextA==revisionA && nextB==revisionB) return;
+    revisionA=nextA;
+    revisionB=nextB;
     for (auto& c: channels) {
         resetFIFO(c);
+        if (!revisionB) c.sample_control=0;
         c.sqv4_ready=false;
         if (!revisionA && c.waveform_type==WAVEFORM_FIFO_DAC)
             c.waveform_type=WAVEFORM_WAVETABLE;
@@ -219,16 +223,20 @@ int16_t S3W2_Sound::generateFIFOSample(int ch) {
 // and volume. Modulation IDs retain the Furnace core's existing mapping.
 int32_t S3W2_Sound::generateInterpolatedSample(int ch, bool pcm) {
     Channel& c=channels[ch];
-    if (!pcm) c.phase+=static_cast<double>(c.frequency)/SOUND_CLOCK;
+    const uint32_t waveMask=(256u>>(c.sample_control&3))-1;
+    // The chip compensates for the table length: the same FREQUENCY gives the
+    // same pitch for 256/128/64/32-sample tables.
+    if (!pcm) c.phase+=static_cast<double>(c.frequency)/SOUND_CLOCK*(waveMask+1)/256.0;
     double scaled=c.phase*256;
     uint64_t phase=static_cast<uint64_t>(scaled);
     int frac=CLIP(static_cast<int>((scaled-phase)*256),0,255);
+    if (c.sample_control&4) frac=0; // interpolation off: hold the integer position
     int target=convertToAbsoluteChannelAddress(ch,c.modulation_targeting_mode,c.modulation_target);
     if (c.modulation_type==MOD_PHASE) {
         int64_t offset=(c.modulation_param_1*channels[target].last_sample)>>12;
         phase+=offset;
     }
-    uint32_t addr=pcm?((phase+c.pcm_start_addr)&(PCM_RAM_SIZE-1)):(phase&255);
+    uint32_t addr=pcm?((phase+c.pcm_start_addr)&(PCM_RAM_SIZE-1)):(phase&waveMask);
     uint32_t next;
     int current, following;
     if (pcm) {
@@ -239,7 +247,7 @@ int32_t S3W2_Sound::generateInterpolatedSample(int ch, bool pcm) {
         following=(*pcm_ram)[next&(PCM_RAM_SIZE-1)];
     } else {
         current=c.wavetable[addr];
-        following=c.wavetable[(addr+1)&255];
+        following=c.wavetable[(addr+1)&waveMask];
     }
     int32_t q8=current*(256-frac)+following*frac;
     if (c.modulation_type==MOD_RING) {
@@ -361,7 +369,7 @@ int32_t S3W2_Sound::generateSQV4Sample(int ch)
     int32_t current=c.sqv4_frames[(target/63)&1][target%63];
     int32_t q8=current*256;
     int frac=CLIP(static_cast<int>((c.phase*256-std::floor(c.phase*256))*256),0,255);
-    if (revisionA && frac && target+1<c.sqv4_header.samples) {
+    if (revisionA && frac && !(c.sample_control&4) && target+1<c.sqv4_header.samples) {
         uint32_t next=target+1;
         ensureSQV4Frame(c,next/63);
         int32_t following=c.sqv4_frames[(next/63)&1][next%63];
@@ -550,6 +558,11 @@ void S3W2_Sound::writeChannelPCMReg(int ch, uint8_t offset, uint8_t value)
         uint32_t v = (static_cast<uint32_t>(value) << shift);
         c.pcm_loop_addr = (c.pcm_loop_addr & ~mask) | v;
     }
+    else if (offset == 0x0A)
+    {
+        // 3WS8PNB SAMPLE_CONTROL; bits 7:3 reserved. Phase/SRAM are untouched.
+        if (revisionB) c.sample_control = value & 0x07;
+    }
     else if (offset == 9)
     {
         c.pcm_control = value;
@@ -734,6 +747,7 @@ uint8_t S3W2_Sound::readChannelControl(int ch, uint8_t offset)
         return static_cast<uint8_t>(c.fifo.size()>>((0x0F-offset)*8));
     }
     else if (offset>=0x10 && offset<=0x19) return readChannelPCMReg(ch,offset-0x10);
+    else if (revisionB && offset==0x1A) return c.sample_control;
     return 0;
 }
 

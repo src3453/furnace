@@ -333,6 +333,7 @@ const char* cmdName[]={
   "DIV_CMD_S3HS_OP_FREQ_FU", // (OP, value)
   "DIV_CMD_S3HS_OP_FREQ_FL", // (OP, value)
   "DIV_CMD_S3HS_FILTER", // (OP, value)
+  "DIV_CMD_S3W2_SAMPLE_CONTROL", // (value)
 };
 
 // fail build if you forgot to update the array

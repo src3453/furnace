@@ -921,6 +921,12 @@ void FurnaceGUI::doAction(int what) {
           waveSizeList.push_back(FurnaceGUIWaveSizeEntry(32,sysDef->waveHeight,sysDef->name));
           waveSizeList.push_back(FurnaceGUIWaveSizeEntry(64,sysDef->waveHeight,sysDef->name));
           waveSizeList.push_back(FurnaceGUIWaveSizeEntry(128,sysDef->waveHeight,sysDef->name));
+        } else if (e->song.system[i]==DIV_SYSTEM_S3W2 && e->song.systemFlags[i].getInt("chipType",0)==2) {
+          // 3WS8PNB: SAMPLE_CONTROL selects 256/128/64/32-sample wavetables
+          const int sizes[4]={256,128,64,32};
+          for (int size: sizes) {
+            waveSizeList.push_back(FurnaceGUIWaveSizeEntry(size,sysDef->waveHeight,sysDef->name));
+          }
         } else {
           waveSizeList.push_back(FurnaceGUIWaveSizeEntry(sysDef->waveWidth,sysDef->waveHeight,sysDef->name));
         }

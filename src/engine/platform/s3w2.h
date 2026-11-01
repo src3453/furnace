@@ -12,6 +12,9 @@ class DivPlatformS3W2: public DivDispatch {
     int hasOffset, pcmOffset;
     signed char waveROM[256] = {0}; // 8 bit signed waveform
     bool pcmLoop;
+    int wsWidth, regWidth; // wave synth width / wave length currently in chip SRAM
+    unsigned char scManual; // SAMPLE_CONTROL from effect/macro (3WS8PNB)
+    int synthWave1, synthWave2; // wavetable synthesizer source waves (-1: synth off)
     DivWaveSynth ws;
     Channel():
       SharedChannel(15,true),
@@ -22,7 +25,12 @@ class DivPlatformS3W2: public DivDispatch {
       hasOffset(0),
       pcmOffset(0),
       pan(0),
-      pcmLoop(false) {}
+      pcmLoop(false),
+      wsWidth(256),
+      regWidth(256),
+      scManual(0),
+      synthWave1(-1),
+      synthWave2(-1) {}
   };
   Channel chan[8];
   DivDispatchOscBuffer* oscBuf[8];
@@ -39,9 +47,13 @@ class DivPlatformS3W2: public DivDispatch {
   unsigned int sampleLenSU[256];
   bool sampleSQV4[256];
   S3W2_Sound* chip;
+  int revision=0; // 0: 3WS8PN, 1: 3WS8PNA, 2: 3WS8PNB
   DivPitchTable pitchTable;
   unsigned char regPool[0x900]; // 0x000-0x8FF
   void updateWave(int ch);
+  int wantWidth(int ch);
+  void syncWaveWidth(int ch);
+  void writeSampleControl(int ch);
   friend void putDispatchChip(void*,int);
   friend void putDispatchChan(void*,int,int);
   public:

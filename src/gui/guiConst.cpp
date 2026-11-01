@@ -1499,12 +1499,12 @@ const int chipsSpecial[]={
   DIV_SYSTEM_S3HS,
   DIV_SYSTEM_3HS816,
   DIV_SYSTEM_S3W2,
+  DIV_SYSTEM_34SI22,
   0 // don't remove this last one!
 };
 
 // sample
 const int chipsSample[]={
-  DIV_SYSTEM_34SI22,
   DIV_SYSTEM_SEGAPCM,
   DIV_SYSTEM_AMIGA,
   DIV_SYSTEM_QSOUND,

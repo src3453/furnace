@@ -39,6 +39,9 @@ Registers (all bytes are in big endian):
  - +0x13~0x15: PCM End Address (MSB 4bit: Reserved, LSB 20bit: Address)
  - +0x16~0x18: PCM Loop Address (MSB 4bit: Reserved, LSB 20bit: Address)
  - +0x19: PCM Playing Control (bit0: Play/Stop, bit1: Loop On/Off, bit2~7: Reserved)
+  on 3WS8PNB:
+ - +0x1A: Sample Control (bit1~0: wavetable length 256/128/64/32, bit2: interpolation off)
+  (Furnace stub: the core scales the phase step by length/256, so pitch is length-independent)
 */
 
 // 定数定義
@@ -86,7 +89,8 @@ struct Channel {
     uint32_t pcm_end_addr;       // PCM終了アドレス (20bit)
     uint32_t pcm_loop_addr;      // PCMループアドレス (20bit)
     uint8_t pcm_control;         // PCM制御レジスタ
-    
+    uint8_t sample_control=0;    // 3WS8PNB +0x1A: bit1:0 wave length, bit2 interpolation off
+
     sqv4::Header sqv4_header;
     sqv4::State sqv4_state;
     uint32_t sqv4_next_frame=0, sqv4_loop=0;
@@ -124,7 +128,7 @@ public:
     ~S3W2_Sound();
     void initialize();
     void reset();
-    // 0: original 3WS8PN (default for existing songs), 1: 3WS8PNA.
+    // 0: original 3WS8PN (default for existing songs), 1: 3WS8PNA, 2: 3WS8PNB.
     void setRevision(int revision);
     void writeRegister(uint32_t address, uint8_t value);
     uint8_t readRegister(uint32_t address);
@@ -135,7 +139,8 @@ public:
     int16_t generateSample(int ch); // routing function
 
 private:
-    bool revisionA=false;
+    bool revisionA=false; // 3WS8PNA or later
+    bool revisionB=false; // 3WS8PNB: SAMPLE_CONTROL (+0x1A)
     void resetFIFO(Channel& c);
     int16_t generateFIFOSample(int ch);
     int32_t generateInterpolatedSample(int ch, bool pcm);

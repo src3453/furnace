@@ -2737,9 +2737,9 @@ void DivEngine::registerSystems() {
   );
   
   sysDefs[DIV_SYSTEM_34SI22]=new DivSysDef(
-    _("34SI22"), NULL, 0xf9, 0, 2, 2, 2,
+    _("34SI22 (S3SP)"), NULL, 0xf9, 0, 2, 2, 2,
     false, true, 0, false, (1U<<DIV_SAMPLE_DEPTH_8BIT)|(1U<<DIV_SAMPLE_DEPTH_16BIT)|(1U<<DIV_SAMPLE_DEPTH_SQV4H)|(1U<<DIV_SAMPLE_DEPTH_SQV4L)|(1U<<DIV_SAMPLE_DEPTH_SQV4L_PLUS), 0, 0,
-    _("Two-channel PCM and SQV4 one-shot playback interface."),
+    _("src3453's (yet yet) another fantasy sound chip. Two-channel PCM and SQV4 one-shot playback interface. Used in CPT32 SGU v3.x or later."),
     DivChanDefFunc({
       DivChanDef(_("Channel 1"), "CH1", DIV_CH_PCM, DIV_INS_34SI22, DIV_INS_AMIGA),
       DivChanDef(_("Channel 2"), "CH2", DIV_CH_PCM, DIV_INS_34SI22, DIV_INS_AMIGA)
@@ -2763,7 +2763,10 @@ void DivEngine::registerSystems() {
       DivChanDef(_("Channel 8"), "CH8", DIV_CH_WAVE, DIV_INS_S3W2, DIV_INS_AMIGA)
     }),
     {},
-    waveOnlyEffectHandlerMap
+    {
+      {0x10, {DIV_CMD_WAVE, _("10xx: Set waveform")}},
+      {0x11, {DIV_CMD_S3W2_SAMPLE_CONTROL, _("11xx: Set sample control (3WS8PNB only; bit 0-1: wave length 256/128/64/32, bit 2: disable interpolation)")}}
+    }
   );
 
   //const EffectHandler suCutoffHandler(DIV_CMD_C64_FINE_CUTOFF, _("4xxx: Set cutoff (0 to FFF)"), effectValLong<12>);
@@ -2834,9 +2837,9 @@ void DivEngine::registerSystems() {
   hs816EffectHandlerMap.erase(0x32);
 
   sysDefs[DIV_SYSTEM_3HS816]=new DivSysDef(
-    _("3HS816"), NULL, 0xfb, 0, 16, 16, 16,
+    _("3HS816 (S3HX)"), NULL, 0xfb, 0, 16, 16, 16,
     false, true, 0, false, 0, 32, 256,
-    _("16 channels of the 3HS88PWN4's harmonic synthesizer, without PCM or effects. Song wavetables 0 to 3 are its user waves A to D."),
+    _("16 channels version of 3HS88PWN4, without PCM or effects. Song wavetables 0 to 3 are its user waves A to D."),
     DivChanDefFunc({
       DivChanDef(_("HS 1"), "H1", DIV_CH_FM, DIV_INS_S3HS),
       DivChanDef(_("HS 2"), "H2", DIV_CH_FM, DIV_INS_S3HS),

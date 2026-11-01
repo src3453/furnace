@@ -111,3 +111,18 @@ wave audio, repeat resets, core Slew semantics and existing SGUB playback.
   constant user wave cannot be checked as DC.
 - `test/sgub/smoke.py` already failed before this change: it asserts the v1
   header while the writer emits v2/v3.
+
+## S3W2 3WS8PNB (SGU v3.1) (2026-11-02)
+- `chipType=2` selects 3WS8PNB (spec: CPT32 `doc/spec_SGU_v3_1.md`). Per-channel SAMPLE_CONTROL
+  (+0x1A: bits1:0 wave length 256/128/64/32, bit2 interpolation off) exists only on revision 2;
+  older revisions ignore writes and read 0. Effect `11xx` and instrument macro ex5 set it.
+- A shorter length plays faster at the same FREQUENCY, so the platform scales the frequency by
+  length/256. An explicit length (11xx/macro) resamples the wavetable to that width (like
+  Amiga/SNES variable length); value 0 = automatic: 32/64/128-sample wavetables stay native.
+  Writing a 256-sample wave unscaled with length bits set plays only its first part (the original bug).
+- DivWaveSynth::init re-renders the synth's wave1/wave2 at the width it is given, ignoring
+  the channel wave; pass the real width to init and re-sync (`syncWaveWidth`) when it changes.
+- New Wavetable popup candidates come from `GUI_ACTION_WAVE_LIST_ADD` (doAction.cpp): waveWidth 0
+  gives 32/64/128, otherwise one fixed size; S3W2 with chipType 2 lists 256/128/64/32.
+- Real-engine check: build a FUR fixture (FLAG element type 2 with `chipType=2`) and render with
+  `-output`; fit a sine to the WAV. A running furnace.exe blocks relinking (LNK1104).

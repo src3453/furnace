@@ -9608,6 +9608,7 @@ void FurnaceGUI::drawInsEdit() {
               macroList.push_back(FurnaceGUIMacroDesc(_("Modulator Channel"),&ins->std.ex2Macro,0,7,90,uiColors[GUI_COLOR_MACRO_FILTER]));
               macroList.push_back(FurnaceGUIMacroDesc(_("Modulation Parameter 1"),&ins->std.ex3Macro,0,65535,160,uiColors[GUI_COLOR_MACRO_FILTER]));
               macroList.push_back(FurnaceGUIMacroDesc(_("Modulation Parameter 2"),&ins->std.ex4Macro,0,65535,160,uiColors[GUI_COLOR_MACRO_FILTER]));
+              macroList.push_back(FurnaceGUIMacroDesc(_("Sample Control (3WS8PNB)"),&ins->std.ex5Macro,0,7,64,uiColors[GUI_COLOR_MACRO_OTHER]));
               break;
               case DIV_INS_UPD1771C:
               macroList.push_back(FurnaceGUIMacroDesc(_("Volume"),&ins->std.volMacro,0,31,160,uiColors[GUI_COLOR_MACRO_VOLUME]));

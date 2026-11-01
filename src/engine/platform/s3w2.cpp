@@ -58,11 +58,54 @@ void DivPlatformS3W2::acquire(short** buf, size_t len) {
   }
 }
 
+// 3WS8PNB plays the first 32/64/128 samples of the SRAM when SAMPLE_CONTROL
+// selects a shorter length. Wavetables of exactly those lengths are written
+// unscaled; anything else is resampled to 256 as before.
+// With the wavetable synthesizer on, its first wave defines the output size.
+int DivPlatformS3W2::wantWidth(int ch) {
+  if (revision<2) return 256;
+  // An explicit length (11xx / Sample Control macro) rescales the wave to it,
+  // like the variable-length waves of Amiga/SNES. 0 means automatic.
+  if (chan[ch].scManual&3) return 256>>(chan[ch].scManual&3);
+  int src=(chan[ch].synthWave1>=0)?chan[ch].synthWave1:chan[ch].wave;
+  if (src<0) return 256;
+  DivWavetable* w=parent->getWave(src);
+  if (w!=NULL && (w->len==32 || w->len==64 || w->len==128)) return w->len;
+  return 256;
+}
+
+void DivPlatformS3W2::syncWaveWidth(int ch) {
+  chan[ch].wsWidth=wantWidth(ch);
+  chan[ch].ws.setWidth(chan[ch].wsWidth);
+  if (chan[ch].synthWave1>=0) {
+    // DivWaveSynth::init rendered both synth waves at the old width
+    chan[ch].ws.changeWave1(chan[ch].synthWave1,true);
+    if (chan[ch].synthWave2>=0) chan[ch].ws.changeWave2(chan[ch].synthWave2);
+  } else if (chan[ch].wave>=0) {
+    chan[ch].ws.changeWave1(chan[ch].wave,true);
+  }
+}
+
+void DivPlatformS3W2::writeSampleControl(int ch) {
+  if (revision<2) return;
+  int w=chan[ch].regWidth;
+  unsigned char len=(w==128)?1:(w==64)?2:(w==32)?3:0;
+  unsigned char val=len|(chan[ch].scManual&4);
+  int addr=regBase+0x20*ch+0x1A;
+  if (rRead(addr)!=val) {
+    rWrite(addr,val);
+  }
+}
+
 void DivPlatformS3W2::updateWave(int ch) {
   if (chan[ch].pcm) return; // PCMモードでは更新しない
-  for (int i=0; i<256; i++) {
+  int width=wantWidth(ch);
+  if (width!=chan[ch].wsWidth) syncWaveWidth(ch);
+  for (int i=0; i<width; i++) {
     rWrite(ch*256+i,(unsigned char)chan[ch].ws.output[i]);
   }
+  chan[ch].regWidth=width;
+  writeSampleControl(ch);
 }
 
 /*
@@ -155,6 +198,12 @@ void DivPlatformS3W2::tick(bool sysTick) {
     if (chan[i].std.ex4.had) {
       rWrite16(addrbase+0x08,chan[i].std.ex4.val); // +0x08~0x09: Modulation Depth/Parameter LSB 16bit
     }
+    if (chan[i].std.ex5.had) {
+      // Sample Control (3WS8PNB): bit 0-1 wave length, bit 2 interpolation off
+      chan[i].scManual=chan[i].std.ex5.val&7;
+      if (!chan[i].pcm && wantWidth(i)!=chan[i].wsWidth) syncWaveWidth(i); // updateWave follows
+      writeSampleControl(i);
+    }
     if (chan[i].active) {
       if (chan[i].ws.tick()) {
         updateWave(i);
@@ -245,7 +294,14 @@ int DivPlatformS3W2::dispatch(DivCommand c) {
         chan[c.chan].ws.changeWave1(chan[c.chan].wave);
       }
       rWrite(addrbase+0x03,chan[c.chan].outVol); // +0x03: Volume (0~255)
-      chan[c.chan].ws.init(ins,256,255,chan[c.chan].insChanged);
+      // Like Amiga/SNES, initialize the wave synth at the real width
+      chan[c.chan].synthWave1=ins->ws.enabled?ins->ws.wave1:-1;
+      chan[c.chan].synthWave2=ins->ws.enabled?ins->ws.wave2:-1;
+      chan[c.chan].wsWidth=chan[c.chan].pcm?256:wantWidth(c.chan);
+      chan[c.chan].ws.init(ins,chan[c.chan].wsWidth,255,chan[c.chan].insChanged);
+      if (!chan[c.chan].pcm && (wantWidth(c.chan)!=256 || chan[c.chan].regWidth!=256)) {
+        syncWaveWidth(c.chan); // re-renders; tick() then calls updateWave
+      }
       chan[c.chan].insChanged=false;
       chan[c.chan].keyOn=true;
       break;
@@ -291,7 +347,12 @@ int DivPlatformS3W2::dispatch(DivCommand c) {
       chan[c.chan].wave=c.value;
       chan[c.chan].ws.changeWave1(chan[c.chan].wave);
       break;
-    case DIV_CMD_PANNING: 
+    case DIV_CMD_S3W2_SAMPLE_CONTROL:
+      chan[c.chan].scManual=c.value&7;
+      if (!chan[c.chan].pcm && wantWidth(c.chan)!=chan[c.chan].wsWidth) syncWaveWidth(c.chan);
+      writeSampleControl(c.chan); // +0x1A: Sample Control (3WS8PNB)
+      break;
+    case DIV_CMD_PANNING:
       chan[c.chan].pan=(c.value>>4)*16+(c.value2>>4);
       rWrite(addrbase+0x04,chan[c.chan].pan); // +0x04: Panpot (MSB: Left 4bit, LSB: Right 4bit)
       break;
@@ -398,6 +459,8 @@ void DivPlatformS3W2::reset() {
     chan[i].std.setEngine(parent);
     chan[i].ws.setEngine(parent,128);
     chan[i].ws.init(NULL,256,255,false);
+    chan[i].wsWidth=256;
+    chan[i].regWidth=256;
     chan[i].vol=255;
     chan[i].outVol=255;
   }
@@ -528,7 +591,9 @@ void DivPlatformS3W2::notifyPitchTable(int sample) {
 }
 
 void DivPlatformS3W2::setFlags(const DivConfig& flags) {
-  chip->setRevision(flags.getInt("chipType",0)==1?1:0);
+  int type=flags.getInt("chipType",0);
+  revision=(type==1 || type==2)?type:0;
+  chip->setRevision(revision);
 }
 
 int DivPlatformS3W2::init(DivEngine* p, int channels, int sugRate, const DivConfig& flags) {
