@@ -1388,6 +1388,7 @@ const int availableSystems[]={
   DIV_SYSTEM_SID3,
   DIV_SYSTEM_MULTIPCM,
   DIV_SYSTEM_S3HS,
+  DIV_SYSTEM_3HS816,
   DIV_SYSTEM_S3W2,
   DIV_SYSTEM_34SI22,
   0 // don't remove this last one!
@@ -1486,7 +1487,6 @@ const int chipsSpecial[]={
   DIV_SYSTEM_MMC5,
   DIV_SYSTEM_SM8521,
   DIV_SYSTEM_CPT100,
-  DIV_SYSTEM_3FS44U,
   DIV_SYSTEM_POWERNOISE,
   DIV_SYSTEM_DAVE,
   DIV_SYSTEM_NDS,
@@ -1497,6 +1497,7 @@ const int chipsSpecial[]={
   DIV_SYSTEM_UPD1771C,
   DIV_SYSTEM_SID3,
   DIV_SYSTEM_S3HS,
+  DIV_SYSTEM_3HS816,
   DIV_SYSTEM_S3W2,
   0 // don't remove this last one!
 };

@@ -8,7 +8,7 @@
 
 #define CHIP_FREQBASE 48000
 #define rWrite(a,v) if (!skipRegisterWrites) {if(a>=0x400000 && a<0x400400) {doWrite(a,v); regPool[((a-0x400000)%0x400)]=v;} if (dumpWrites) {addWrite(a-0x400000,v);} }
-#define rRead(a) cpt->ram_peek(cpt->ram,(int)a);
+#define rRead(a) chipRegs->read(a);
 
 unsigned int s3hs_chanaddrs_freq[12] = {0x400000,0x400040,0x400080,0x4000c0,0x400100,0x400140,0x400180,0x4001c0,0x400200,0x400230,0x400260,0x400290};
 unsigned int s3hs_chanaddrs_volume[12] = {0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x0,0x400202,0x400232,0x400262,0x400292};
@@ -36,8 +36,7 @@ static inline unsigned char s3hs_scaled_op_volume(unsigned char opVolume, int ch
 }
 
 void DivPlatformS3HS::doWrite(unsigned int addr, unsigned char data) {
-  //printf("S3W: %lld %08x : %02x\n", std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch()).count(), addr, (int)data);
-  cpt->ram_poke(cpt->ram,(int)addr,(Byte)data);
+  chipRegs->write(addr,data);
 }
 
 void DivPlatformS3HS::writeOpVolumes(int channel, int channelVolume, int mode, int* opVolumes) {
@@ -56,50 +55,24 @@ void DivPlatformS3HS::updateWave(int ch) {
 }
 
 void DivPlatformS3HS::acquire(short** buf, size_t len) {
-  // オシロスコープバッファを初期化
+  hs88::ChannelOutputs taps;
   for (int i=0; i<chans; i++) {
     oscBuf[i]->begin(len);
+    oscTap[i].resize(len*2);
+    taps.left[i]=oscTap[i].data();
+    taps.right[i]=oscTap[i].data()+len;
   }
 
-  // S3HSエミュレータからオーディオデータを取得
-  std::vector<std::vector<std::vector<float_t>>> output = cpt->AudioCallBack(len);
-  
-  // 各サンプルを処理
-  for (size_t i=0; i<len; i++) {
-    float outL = 0;
-    float outR = 0;
+  chip->render(buf[0],buf[1],len,&taps);
 
-    // 各チャンネルを処理
-    for (unsigned char j=0; j<chans; j++) {
-      // モノラル出力を計算（オシロスコープ用）
-      float chanOut = ((output[0][j][i] + output[1][j][i]) / 2);
-      if (chanOut < -32768.0f) chanOut = -32768.0f;
-      if (chanOut > 32767.0f) chanOut = 32767.0f;
-
-      // オシロスコープバッファにサンプルを格納
-      oscBuf[j]->putSample(i, (short)((float)chanOut / 2));
-      
-      // チャンネル位置を更新
-      chan[j].pos += chan[j].freq;
-    }
-    
-    // マスター出力（チャンネル12）を取得
-    outL = (int)output[0][12][i];
-    outR = (int)output[1][12][i];
-    
-    // 値のクランプ
-    if (outL < -32768) outL = -32768;
-    if (outL > 32767) outL = 32767;
-    if (outR < -32768) outR = -32768;
-    if (outR > 32767) outR = 32767;
-    
-    // 出力バッファに書き込み
-    buf[0][i] = outL;
-    buf[1][i] = outR;
-  }
-  
-  // オシロスコープバッファの終了処理
   for (int i=0; i<chans; i++) {
+    for (size_t j=0; j<len; j++) {
+      // taps are DAC units; the sum of both sides matches the old scope level
+      int chanOut=oscTap[i][j]+oscTap[i][len+j];
+      if (chanOut<-32768) chanOut=-32768;
+      if (chanOut>32767) chanOut=32767;
+      oscBuf[i]->putSample(j,(short)chanOut);
+    }
     oscBuf[i]->end(len);
   }
 }
@@ -244,11 +217,12 @@ void DivPlatformS3HS::tick(bool sysTick) {
     if (chan[i].std.phaseReset.had) {
       if (i>=0 && i<=7) {
         if (chan[i].std.phaseReset.val == 1){
-          cpt->resetGate(i);
+          // gate=1 restarts envelopes and phases
+          rWrite(0x40001e+64*i,1);
         }
       } else {
         if (chan[i].std.phaseReset.val == 1){
-          cpt->wtSync(i-8);
+          rWrite(0x400208+48*(i-8),1);
         }
       }
     }
@@ -395,7 +369,6 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
       chan[c.chan].macroInit(ins);
       if (c.chan<8)
       {
-        cpt->resetGate(c.chan);
         rWrite(0x400002 + 64*c.chan,ins->s3hs.op2fu);
         rWrite(0x400003 + 64*c.chan,ins->s3hs.op2fl);
         rWrite(0x400004 + 64*c.chan,ins->s3hs.op3fu);
@@ -468,7 +441,7 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
         chan[c.chan].opvols[7] = ins->s3hs.op8v;
       } else {
       
-        cpt->wtSync(c.chan-8);
+        rWrite(0x400208+48*(c.chan-8),1);
       }
       if (chan[c.chan].insChanged) {
         if (!parent->song.compatFlags.brokenOutVol && !chan[c.chan].std.vol.will) {
@@ -592,13 +565,13 @@ int DivPlatformS3HS::dispatch(DivCommand c) {
       if (c.value % 2 == 0) {
         int waveRegV = rRead(0x400018+c.chan*0x40+c.value/2);
         //std::cout << std::hex << panRegV << std::endl;
-        waveRegV = c.value*16+waveRegV%16;
+        waveRegV = (c.value2&15)*16+waveRegV%16;
         //std::cout << std::hex << panRegV << std::endl;
         rWrite(0x400018+c.chan*0x40+c.value/2,waveRegV);
       } else {
         int waveRegV = rRead(0x400018+c.chan*0x40+c.value/2);
         //std::cout << std::hex << panRegV << std::endl;
-        waveRegV = c.value+waveRegV/16*16;
+        waveRegV = (c.value2&15)+waveRegV/16*16;
         //std::cout << std::hex << panRegV << std::endl;
         rWrite(0x400018+c.chan*0x40+c.value/2,waveRegV);
       }
@@ -737,18 +710,21 @@ void DivPlatformS3HS::renderSamples(int sysID) {
     memPos+=paddedLen;
   }
   sampleMemLen=memPos;
-
-  for (int i=0; i<sampleMemSize; i++) {
-    cpt->ram_poke(cpt->ram,0x0+i,(Byte)((sampleMem[i]+128)&0xff));
-  }
+  loadSampleMemory();
 
   memCompo.used=sampleMemLen;
   memCompo.capacity=sampleMemSize;
 }
 
+// PCM RAM holds unsigned samples; Furnace keeps them signed.
+void DivPlatformS3HS::loadSampleMemory() {
+  for (unsigned int i=0; i<sampleMemSize; i++) {
+    chip->writePcmMemory(i,(unsigned char)((sampleMem[i]+128)&0xff));
+  }
+}
+
 void DivPlatformS3HS::reset() {
-  cpt->ram_boot(cpt->ram);
-  cpt->initSound();
+  chipRegs->reset();
   for (int i=0; i<chans; i++) {
     chan[i]=DivPlatformS3HS::Channel();
     chan[i].pitchTable=&pitchTable;
@@ -767,9 +743,7 @@ void DivPlatformS3HS::reset() {
       chan[i].opwaveoverride[j]=false;
     }
   }
-  for (int i=0; i<sampleMemSize; i++) {
-    cpt->ram_poke(cpt->ram,0x0+i,(Byte)((sampleMem[i]+128)&0xff));
-  }
+  loadSampleMemory();
   for (int i=0;i<8;i++) {
     rWrite(0x40001f+64*i,0x80);
     rWrite(0x4003c0+i,0);
@@ -809,7 +783,8 @@ int DivPlatformS3HS::init(DivEngine* p, int channels, int sugRate, const DivConf
   chipClock=48000;
   pitchTable.init(parent->song.tuning,chipClock,CHIP_FREQBASE,0xffff,false,parent->song.compatFlags.linearPitch);
   chans=channels;
-  cpt = new S3HS_sound();
+  chip = new hs88::Engine();
+  chipRegs = new hs88::RegisterInterface(*chip);
   memset(regPool,0,1024);
   reset();
   setFlags(flags);
@@ -821,7 +796,8 @@ void DivPlatformS3HS::quit() {
   for (int i=0; i<chans; i++) {
     delete oscBuf[i];
   }
-  delete cpt;
+  delete chipRegs;
+  delete chip;
 }
 
 DivPlatformS3HS::~DivPlatformS3HS() {

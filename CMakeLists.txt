@@ -158,6 +158,8 @@ else()
 endif()
 
 set(DEPENDENCIES_INCLUDE_DIRS extern/IconFontCppHeaders extern/blip_buf src/icon)
+# integer 3HS816/3HS88PWN4 models (vendored from the CPT32 repository)
+list(APPEND DEPENDENCIES_INCLUDE_DIRS src/engine/platform/sound/3hs/3hs816/include src/engine/platform/sound/3hs/3hs88pwn4/include)
 
 if (ANDROID AND NOT TERMUX)
   set(DEPENDENCIES_DEFINES "IS_MOBILE")
@@ -902,7 +904,17 @@ src/engine/platform/dummy.cpp
 
 src/engine/platform/cpt100.cpp
 src/engine/platform/s3hs.cpp
-src/engine/platform/3fs44u.cpp
+src/engine/platform/3hs816.cpp
+src/engine/platform/sound/3hs/3hs816/src/channel.cpp
+src/engine/platform/sound/3hs/3hs816/src/engine.cpp
+src/engine/platform/sound/3hs/3hs816/src/envelope.cpp
+src/engine/platform/sound/3hs/3hs816/src/registers.cpp
+src/engine/platform/sound/3hs/3hs816/src/wavetables.cpp
+src/engine/platform/sound/3hs/3hs88pwn4/src/biquad.cpp
+src/engine/platform/sound/3hs/3hs88pwn4/src/engine.cpp
+src/engine/platform/sound/3hs/3hs88pwn4/src/master_effects.cpp
+src/engine/platform/sound/3hs/3hs88pwn4/src/pcm_channel.cpp
+src/engine/platform/sound/3hs/3hs88pwn4/src/registers.cpp
 src/engine/platform/s3w2.cpp
 src/engine/platform/34si22.cpp
 
