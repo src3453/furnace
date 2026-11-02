@@ -161,5 +161,15 @@ void initSystemPresetsSpecialized(std::vector<FurnaceGUISysCategory>& sysCategor
       CH(DIV_SYSTEM_S3W2, 1.0f, 0, "")
     }
   );
+  ENTRY(
+    _("34SI22 (S3SP)"), {
+      CH(DIV_SYSTEM_34SI22, 1.0f, 0, "")
+    }
+  );
+  ENTRY(
+    _("3HS816 (S3HX)"), {
+      CH(DIV_SYSTEM_3HS816, 1.0f, 0, "")
+    }
+  );
   CATEGORY_END;
 }

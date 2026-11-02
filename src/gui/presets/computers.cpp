@@ -1348,5 +1348,12 @@ void initSystemPresetsComputers(std::vector<FurnaceGUISysCategory>& sysCategorie
       )
     }
   );
+  ENTRY(
+    _("CPT32 (SGU v3.1)"), {
+      CH(DIV_SYSTEM_S3W2, 1.0f, 0, "chipType=2\n"),
+      CH(DIV_SYSTEM_S3W2, 1.0f, 0, "chipType=2\n"),
+      CH(DIV_SYSTEM_34SI22, 1.0f, 0, "")
+    }
+  );
   CATEGORY_END;
 }

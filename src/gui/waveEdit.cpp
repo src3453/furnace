@@ -398,7 +398,7 @@ void FurnaceGUI::drawWaveEdit() {
         ImGui::TableNextColumn();
         ImGui::Text(_("Width"));
         if (ImGui::IsItemHovered()) {
-          ImGui::SetTooltip(_("use a width of:\n- any on Amiga/N163\n- 32 on Game Boy, PC Engine, SCC, Konami Bubble System, Namco WSG, Virtual Boy, WonderSwan and 3HS88PWN4\n- 64 on FDS\n- 128 on X1-010\n- 256 on SID3 and 3WS8PN\nany other widths will be scaled during playback."));
+          ImGui::SetTooltip(_("use a width of:\n- any on Amiga/N163\n- 32 on Game Boy, PC Engine, SCC, Konami Bubble System, Namco WSG, Virtual Boy, WonderSwan and 3HS88PWN4\n- 64 on FDS\n- 128 on X1-010\n- 256 on SID3\n- 32, 64, 128 or 256 on 3WS8PN\nany other widths will be scaled during playback."));
         }
         ImGui::SameLine();
         ImGui::SetNextItemWidth(96.0f*dpiScale);
