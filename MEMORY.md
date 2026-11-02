@@ -111,6 +111,12 @@ wave audio, repeat resets, core Slew semantics and existing SGUB playback.
   constant user wave cannot be checked as DC.
 - `test/sgub/smoke.py` already failed before this change: it asserts the v1
   header while the writer emits v2/v3.
+- Later the same day the 192 kHz period quantization (P = floor(192000/F))
+  was removed from the 3HS specs and cores: frequency registers play exact
+  Hz on S3HS and 3HS816. render_check checks A7 = 3520 Hz (the old rule gave
+  3555.6) with relative tolerances (rendered pitch reads ~0.06 % low on any
+  build), and its --reference A/B uses song tuning 480 so the float core's
+  quantization is the identity for the notes it plays.
 
 ## S3W2 3WS8PNB (SGU v3.1) (2026-11-02)
 - `chipType=2` selects 3WS8PNB (spec: CPT32 `doc/spec_SGU_v3_1.md`). Per-channel SAMPLE_CONTROL

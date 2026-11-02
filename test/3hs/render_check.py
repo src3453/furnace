@@ -51,10 +51,10 @@ def pcm_instrument():
     return b"SM" + pack("HhBB", 4, 0, 2, 255)
 
 
-def song(system, notes, instrument, wavetable=None, pan=None, sample=None):
+def song(system, notes, instrument, wavetable=None, pan=None, sample=None, tuning=440):
     """One chip, one pattern per channel; notes = {channel: note}."""
     chip_id, channels = system
-    info = b"render check\0" + b"\0" * 7 + pack("fBfHH", 440, 1, 1., channels, 1)
+    info = b"render check\0" + b"\0" * 7 + pack("fBfHH", tuning, 1, 1., channels, 1)
     info += pack("HHfff", chip_id, channels, 1., 0., 0.)
     info += pack("IB", 0, 1)
     sub = pack("fBBHHBBHHB", 60, 1, 1, 16, 1, 4, 16, 1, 1, 1)
@@ -163,12 +163,19 @@ def main():
         rate, left, _ = run("s3hs", song(S3HS, {0: NOTE_A4}, sine))
         w = window(left, rate)
         check(peak(w) > 2000, f"S3HS sine sounds (peak {peak(w)})")
-        check(abs(frequency(w, rate) - 440.4) < 1, f"S3HS A4 at 440.4 Hz (P=436; {frequency(w, rate):.2f})")
+        check(abs(frequency(w, rate) / 440 - 1) < 0.003, f"S3HS A4 at 440 Hz ({frequency(w, rate):.2f})")
 
         rate, left, _ = run("hs816", song(HS816, {0: NOTE_A4}, sine))
         w816 = window(left, rate)
         check(peak(w816) > 2000, f"3HS816 sine sounds (peak {peak(w816)})")
-        check(abs(frequency(w816, rate) - 440.4) < 1, f"3HS816 A4 at 440.4 Hz ({frequency(w816, rate):.2f})")
+        check(abs(frequency(w816, rate) / 440 - 1) < 0.003, f"3HS816 A4 at 440 Hz ({frequency(w816, rate):.2f})")
+
+        # The frequency register is exact Hz. The retired 192 kHz period
+        # quantization played A7 (3520 Hz) at 192000 / 54 = 3555.6 Hz.
+        for system, name in ((S3HS, "S3HS"), (HS816, "3HS816")):
+            rate, left, _ = run(f"{name}-a7", song(system, {0: NOTE_A4 + 36}, sine))
+            hz = frequency(window(left, rate), rate)
+            check(abs(hz / 3520 - 1) < 0.003, f"{name} A7 at 3520 Hz, not 3555.6 ({hz:.1f})")
         # S3HS's note-on scales operator volume by vol/256, 3HS816 by vol/255.
         check(shape_snr(w, w816) > 60, f"shared instrument: S3HS and 3HS816 match ({shape_snr(w, w816):.1f} dB)")
 
@@ -204,7 +211,10 @@ def main():
                     ("ab-sine", {0: NOTE_A4, 3: NOTE_A4 - 12}, sine, None, 40),
                     ("ab-fm", {1: NOTE_A4}, fm, None, 20),
                     ("ab-pcm", {8: NOTE_A4 - 24}, pcm_instrument(), pcm, 30)):
-                data = song(S3HS, notes, instrument, sample=sample)
+                # The float core quantized pitch to 192000 / floor(192000 / F);
+                # with A4 = 480 Hz the notes used (480, 240, 120 Hz) divide
+                # 192000, so both cores play the same pitch.
+                data = song(S3HS, notes, instrument, sample=sample, tuning=480)
                 _, new_left, _ = run(name, data)
                 _, old_left, _ = run(name, data, reference)
                 # Identical output is possible: after resampling to the
