@@ -674,6 +674,7 @@ const FurnaceGUIActionDef guiActions[GUI_ACTION_MAX]={
   D("WINDOW_PAT_MANAGER", _N("Pattern Manager"), 0),
   D("WINDOW_SYS_MANAGER", _N("Chip Manager"), 0),
   D("WINDOW_REGISTER_VIEW", _N("Register View"), 0),
+  D("WINDOW_S3HS_VIS", _N("3HS88PWN4 Visualizer"), 0),
   D("WINDOW_LOG", _N("Log Viewer"), 0),
   D("WINDOW_EFFECT_LIST", _N("Effect List"), 0),
   D("WINDOW_CHAN_OSC", _N("Oscilloscope (per-channel)"), 0),

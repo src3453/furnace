@@ -28,8 +28,14 @@ void FurnaceGUI::drawRegView() {
     ImGui::SetNextWindowFocus();
     nextWindow=GUI_WINDOW_NOTHING;
   }
-  if (!regViewOpen) return;
+  if (!regViewOpen) {
+    regViewState.clear();
+    return;
+  }
   if (ImGui::Begin("Register View",&regViewOpen,globalWinFlags,_("Register View"))) {
+    const double now=ImGui::GetTime();
+    const double fadeDuration=0.5;
+    regViewState.resize(e->song.systemLen);
     ImVec2 prevPos=ImGui::GetCursorPos();
     ImVec2 topPos=ImGui::GetCursorPos();
     topPos.x+=ImGui::GetContentRegionAvail().x-ImGui::CalcTextSize(ICON_FA_BARS).x;
@@ -50,6 +56,10 @@ void FurnaceGUI::drawRegView() {
         if (regViewColumns<1) regViewColumns=1;
         if (regViewColumns>64) regViewColumns=64;
       }
+      ImGui::Checkbox(_("Highlight register changes"),&regViewHighlight);
+      ImGui::BeginDisabled(!regViewHighlight);
+      ImGui::ColorEdit3(_("Highlight color"),(float*)&regViewHighlightColor,ImGuiColorEditFlags_DisplayHex);
+      ImGui::EndDisabled();
       ImGui::EndPopup();
     }
     for (int i=0; i<e->song.systemLen; i++) {
@@ -58,9 +68,30 @@ void FurnaceGUI::drawRegView() {
       int depth=8;
       unsigned char* regPool=e->getRegisterPool(i,size,depth);
       unsigned short* regPoolW=(unsigned short*)regPool;
+      RegViewState& state=regViewState[i];
       if (regPool==NULL) {
+        state=RegViewState();
         ImGui::Text(_("- no register pool available"));
       } else {
+        // A new pool establishes a baseline without flashing every register.
+        const bool reset=state.pool!=regPool || state.system!=e->song.system[i] ||
+          state.depth!=depth || state.values.size()!=(size_t)size;
+        if (reset) {
+          state.pool=regPool;
+          state.system=e->song.system[i];
+          state.depth=depth;
+          state.values.resize(size);
+          state.changedAt.assign(size,-fadeDuration);
+        }
+        // Update all entries even when their table cells are outside the viewport.
+        for (int j=0; j<size; j++) {
+          unsigned short value=depth==16?regPoolW[j]:regPool[j];
+          if (!reset && state.values[j]!=value) state.changedAt[j]=now;
+          state.values[j]=value;
+          if (regViewHighlight && now-state.changedAt[j]<fadeDuration) {
+            WAKE_UP;
+          }
+        }
         ImGui::PushFont(patFont);
         int bytesPerValue=MAX(1,depth/8);
         int columns=MAX(1,regViewColumns/bytesPerValue);
@@ -82,9 +113,13 @@ void FurnaceGUI::drawRegView() {
             for (int col=0; col<columns; col++) {
               ImGui::TableNextColumn();
               if (row+col>=size) continue;
+              const int index=row+col;
+              const float highlight=regViewHighlight?(float)MAX(0.0,1.0-(now-state.changedAt[index])/fadeDuration):0.0f;
+              const ImVec4 normalColor=ImGui::GetStyleColorVec4(ImGuiCol_Text);
+              const ImVec4 color=ImLerp(normalColor,ImVec4(regViewHighlightColor.x,regViewHighlightColor.y,regViewHighlightColor.z,normalColor.w),highlight);
               switch (depth) {
-                case 8: ImGui::Text("%.2x",regPool[row+col]); break;
-                case 16: ImGui::Text("%.4x",regPoolW[row+col]); break;
+                case 8: ImGui::TextColored(color,"%.2x",state.values[index]); break;
+                case 16: ImGui::TextColored(color,"%.4x",state.values[index]); break;
                 default: ImGui::Text("??"); break;
               }
             }

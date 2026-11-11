@@ -1049,6 +1049,7 @@ src/gui/piano.cpp
 src/gui/presets.cpp
 src/gui/refPlayer.cpp
 src/gui/regView.cpp
+src/gui/s3hsVis.cpp
 src/gui/sampleEdit.cpp
 src/gui/scaling.cpp
 src/gui/settings.cpp

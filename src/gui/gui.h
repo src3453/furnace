@@ -639,6 +639,7 @@ enum FurnaceGUIWindows {
   GUI_WINDOW_REF_PLAYER,
   GUI_WINDOW_MULTI_INS_SETUP,
   GUI_WINDOW_BACKUPS_MANAGER,
+  GUI_WINDOW_S3HS_VIS,
   GUI_WINDOW_SPOILER
 };
 
@@ -839,6 +840,7 @@ enum FurnaceGUIActions {
   GUI_ACTION_WINDOW_PAT_MANAGER,
   GUI_ACTION_WINDOW_SYS_MANAGER,
   GUI_ACTION_WINDOW_REGISTER_VIEW,
+  GUI_ACTION_WINDOW_S3HS_VIS,
   GUI_ACTION_WINDOW_LOG,
   GUI_ACTION_WINDOW_EFFECT_LIST,
   GUI_ACTION_WINDOW_CHAN_OSC,
@@ -2511,7 +2513,7 @@ class FurnaceGUI {
   bool editControlsOpen, ordersOpen, insListOpen, songInfoOpen, patternOpen, insEditOpen;
   bool waveListOpen, waveEditOpen, sampleListOpen, sampleEditOpen, aboutOpen, settingsOpen;
   bool mixerOpen, debugOpen, inspectorOpen, oscOpen, volMeterOpen, statsOpen, compatFlagsOpen;
-  bool pianoOpen, notesOpen, tunerOpen, spectrumOpen, channelsOpen, regViewOpen, logOpen, effectListOpen, chanOscOpen;
+  bool pianoOpen, notesOpen, tunerOpen, spectrumOpen, channelsOpen, regViewOpen, s3hsVisOpen, logOpen, effectListOpen, chanOscOpen;
   bool subSongsOpen, findOpen, spoilerOpen, patManagerOpen, sysManagerOpen, clockOpen, speedOpen;
   bool groovesOpen, xyOscOpen, memoryOpen, csPlayerOpen, cvOpen, userPresetsOpen, refPlayerOpen;
   bool multiInsSetupOpen, backupsManagerOpen;
@@ -2857,6 +2859,16 @@ class FurnaceGUI {
 
   // register view
   int regViewColumns;
+  bool regViewHighlight;
+  ImVec4 regViewHighlightColor;
+  struct RegViewState {
+    const unsigned char* pool=nullptr;
+    DivSystem system=DIV_SYSTEM_NULL;
+    int depth=0;
+    std::vector<unsigned short> values;
+    std::vector<double> changedAt;
+  };
+  std::vector<RegViewState> regViewState;
 
   // spectrum and tuner
   double* tunerFFTInBuf;
@@ -3201,6 +3213,8 @@ class FurnaceGUI {
   void drawPatManager();
   void drawSysManager();
   void drawRegView();
+  void drawS3HSVis();
+  void drawS3HSVisChip(int sysIndex, ImVec2 size, size_t cacheIndex);
   void drawAbout();
   void drawIntro(double introTime, bool monitor=false);
   void drawSettings();

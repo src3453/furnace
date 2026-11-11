@@ -1,4 +1,5 @@
 #include "s3hs.h"
+#include "hs816/registers.hpp"
 #include "../engine.h"
 #include <stdio.h>
 #include <math.h>
@@ -37,6 +38,85 @@ static inline unsigned char s3hs_scaled_op_volume(unsigned char opVolume, int ch
 
 void DivPlatformS3HS::doWrite(unsigned int addr, unsigned char data) {
   chipRegs->write(addr,data);
+  if (addr>=hs88::reg::kRegisterBase && addr<hs88::reg::kRegisterBase+hs88::reg::kRegisterSize) {
+    visWrite(addr-hs88::reg::kRegisterBase,data);
+  }
+}
+
+void DivPlatformS3HS::visReset() {
+  for (int ch=0; ch<8; ch++) {
+    visGate[ch]=false;
+    for (int op=0; op<8; op++) {
+      visEnv[ch][op]=hs816::Envelope();
+      visRates[ch][op]=hs816::EnvelopeRates::fromRegisters(hs816::EnvelopeRegisters{});
+      visIdle[ch][op]=0;
+    }
+  }
+  for (int i=0; i<4; i++) {
+    visPcmPos[i]=0;
+    visPcmFrac[i]=0;
+  }
+  memset(visTrigger,0,sizeof(visTrigger));
+}
+
+// Mirrors hs816::writeChannelRegister (gate, envelope) and the PCM sync strobe.
+void DivPlatformS3HS::visWrite(unsigned int offset, unsigned char data) {
+  if (offset<hs88::reg::kPcmBase) {
+    const int ch=offset/hs88::reg::kHarmonicStride;
+    const unsigned int in=offset%hs88::reg::kHarmonicStride;
+    if (in==hs816::reg::kGate) {
+      // 1 retriggers, 0 releases only while the gate is on, others do nothing.
+      if (data==1 || (data==0 && visGate[ch])) {
+        for (int op=0; op<8; op++) {
+          if (data==1) {
+            visEnv[ch][op].restart();
+          } else {
+            visEnv[ch][op].release();
+          }
+          visIdle[ch][op]=0;
+        }
+        visGate[ch]=(data==1);
+        if (data==1) visTrigger[ch]++;
+      }
+    } else if (in>=hs816::reg::kEnvelope) {
+      const int op=(in-hs816::reg::kEnvelope)/4;
+      const hs816::EnvelopeRegisters& regs=chip->harmonic(ch).params().operators[op].envelope;
+      visRates[ch][op]=hs816::EnvelopeRates::fromRegisters(regs);
+      visIdle[ch][op]=0;
+    }
+  } else if (offset<hs88::reg::kPcmBase+4*hs88::reg::kPcmStride) {
+    const int ch=(offset-hs88::reg::kPcmBase)/hs88::reg::kPcmStride;
+    if ((offset-hs88::reg::kPcmBase)%hs88::reg::kPcmStride==hs88::reg::kPcmSync) {
+      visPcmPos[ch]=0;
+      visPcmFrac[ch]=0;
+      visTrigger[8+ch]++;
+    }
+  }
+}
+
+void DivPlatformS3HS::visAdvance(size_t len) {
+  for (int ch=0; ch<8; ch++) {
+    for (int op=0; op<8; op++) {
+      hs816::Envelope& env=visEnv[ch][op];
+      const hs816::EnvelopeRates& rates=visRates[ch][op];
+      // Sustain holds its level, and a finished release stays at zero.
+      if (env.stage()==hs816::Envelope::Stage::Sustain) {
+        env.advance(rates);
+        continue;
+      }
+      if (env.stage()==hs816::Envelope::Stage::Release && env.level()==0 && visIdle[ch][op]>rates.release.length) continue;
+      for (size_t i=0; i<len; i++) env.advance(rates);
+      visIdle[ch][op]+=len;
+    }
+  }
+  for (int i=0; i<4; i++) {
+    // Same rounded-up Q32 step as hs88::PcmChannel::setFrequency.
+    const unsigned long long hz=chip->pcm(i).params().frequency;
+    const unsigned long long step=((hz<<32)+1499)/1500;
+    const unsigned long long total=(unsigned long long)visPcmFrac[i]+(step&0xffffffffULL)*len;
+    visPcmPos[i]+=(step>>32)*len+(total>>32);
+    visPcmFrac[i]=(unsigned int)total;
+  }
 }
 
 void DivPlatformS3HS::writeOpVolumes(int channel, int channelVolume, int mode, int* opVolumes) {
@@ -64,6 +144,7 @@ void DivPlatformS3HS::acquire(short** buf, size_t len) {
   }
 
   chip->render(buf[0],buf[1],len,&taps);
+  visAdvance(len);
 
   for (int i=0; i<chans; i++) {
     for (size_t j=0; j<len; j++) {
@@ -725,6 +806,7 @@ void DivPlatformS3HS::loadSampleMemory() {
 
 void DivPlatformS3HS::reset() {
   chipRegs->reset();
+  visReset();
   for (int i=0; i<chans; i++) {
     chan[i]=DivPlatformS3HS::Channel();
     chan[i].pitchTable=&pitchTable;

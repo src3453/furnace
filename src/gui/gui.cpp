@@ -4382,6 +4382,7 @@ bool FurnaceGUI::loop() {
   DECLARE_METRIC(sysManager)
   DECLARE_METRIC(clock)
   DECLARE_METRIC(regView)
+  DECLARE_METRIC(s3hsVis)
   DECLARE_METRIC(log)
   DECLARE_METRIC(effectList)
   DECLARE_METRIC(userPresets)
@@ -5029,6 +5030,7 @@ bool FurnaceGUI::loop() {
         IMPORT_CLOSE(spectrumOpen);
         IMPORT_CLOSE(channelsOpen);
         IMPORT_CLOSE(regViewOpen);
+        IMPORT_CLOSE(s3hsVisOpen);
         IMPORT_CLOSE(logOpen);
         IMPORT_CLOSE(effectListOpen);
         IMPORT_CLOSE(chanOscOpen);
@@ -5419,6 +5421,7 @@ bool FurnaceGUI::loop() {
         if (ImGui::BeginMenu(_("debug"))) {
           if (ImGui::MenuItem(_("log viewer"),BIND_FOR(GUI_ACTION_WINDOW_LOG),logOpen)) logOpen=!logOpen;
           if (ImGui::MenuItem(_("register view"),BIND_FOR(GUI_ACTION_WINDOW_REGISTER_VIEW),regViewOpen)) regViewOpen=!regViewOpen;
+          if (ImGui::MenuItem(_("3HS88PWN4 visualizer"),BIND_FOR(GUI_ACTION_WINDOW_S3HS_VIS),s3hsVisOpen)) s3hsVisOpen=!s3hsVisOpen;
           if (ImGui::MenuItem(_("statistics"),BIND_FOR(GUI_ACTION_WINDOW_STATS),statsOpen)) statsOpen=!statsOpen;
           if (ImGui::MenuItem(_("memory composition"),BIND_FOR(GUI_ACTION_WINDOW_MEMORY),memoryOpen)) memoryOpen=!memoryOpen;
           if (ImGui::MenuItem(_("command stream player"),BIND_FOR(GUI_ACTION_WINDOW_CS_PLAYER),csPlayerOpen)) csPlayerOpen=!csPlayerOpen;
@@ -5636,6 +5639,7 @@ bool FurnaceGUI::loop() {
       MEASURE(volMeter,drawVolMeter());
       MEASURE(grooves,drawGrooves());
       MEASURE(regView,drawRegView());
+      MEASURE(s3hsVis,drawS3HSVis());
       MEASURE(memory,drawMemory());
       MEASURE(effectList,drawEffectList());
       MEASURE(userPresets,drawUserPresets());
@@ -5687,6 +5691,7 @@ bool FurnaceGUI::loop() {
       MEASURE(sysManager,drawSysManager());
       MEASURE(clock,drawClock());
       MEASURE(regView,drawRegView());
+      MEASURE(s3hsVis,drawS3HSVis());
       MEASURE(log,drawLog());
       MEASURE(effectList,drawEffectList());
       MEASURE(userPresets,drawUserPresets());
@@ -8705,6 +8710,7 @@ void FurnaceGUI::syncState() {
   speedOpen=e->getConfBool("speedOpen",true);
   groovesOpen=e->getConfBool("groovesOpen",false);
   regViewOpen=e->getConfBool("regViewOpen",false);
+  s3hsVisOpen=e->getConfBool("s3hsVisOpen",false);
   logOpen=e->getConfBool("logOpen",false);
   effectListOpen=e->getConfBool("effectListOpen",true);
   subSongsOpen=e->getConfBool("subSongsOpen",true);
@@ -8825,6 +8831,10 @@ void FurnaceGUI::syncState() {
   xyOscThickness=e->getConfFloat("xyOscThickness",2.0f);
 
   regViewColumns=e->getConfInt("regViewColumns",16);
+  regViewHighlight=e->getConfBool("regViewHighlight",true);
+  regViewHighlightColor.x=e->getConfFloat("regViewHighlightColorR",1.0f);
+  regViewHighlightColor.y=e->getConfFloat("regViewHighlightColorG",79.0f/255.0f);
+  regViewHighlightColor.z=e->getConfFloat("regViewHighlightColorB",79.0f/255.0f);
 
   cvHiScore=e->getConfInt("cvHiScore",25000);
 
@@ -8889,6 +8899,7 @@ void FurnaceGUI::commitState(DivConfig& conf) {
   conf.set("speedOpen",speedOpen);
   conf.set("groovesOpen",groovesOpen);
   conf.set("regViewOpen",regViewOpen);
+  conf.set("s3hsVisOpen",s3hsVisOpen);
   conf.set("logOpen",logOpen);
   conf.set("effectListOpen",effectListOpen);
   conf.set("subSongsOpen",subSongsOpen);
@@ -9002,6 +9013,10 @@ void FurnaceGUI::commitState(DivConfig& conf) {
 
   // commit register view state
   conf.set("regViewColumns",regViewColumns);
+  conf.set("regViewHighlight",regViewHighlight);
+  conf.set("regViewHighlightColorR",regViewHighlightColor.x);
+  conf.set("regViewHighlightColorG",regViewHighlightColor.y);
+  conf.set("regViewHighlightColorB",regViewHighlightColor.z);
 
   // commit recent files
   for (int i=0; i<30; i++) {
@@ -9341,6 +9356,7 @@ FurnaceGUI::FurnaceGUI():
   spectrumOpen(false),
   channelsOpen(false),
   regViewOpen(false),
+  s3hsVisOpen(false),
   logOpen(false),
   effectListOpen(false),
   chanOscOpen(false),
@@ -9650,6 +9666,8 @@ FurnaceGUI::FurnaceGUI():
   xyOscIntensity(2.0f),
   xyOscThickness(2.0f),
   regViewColumns(16),
+  regViewHighlight(true),
+  regViewHighlightColor(1.0f,79.0f/255.0f,79.0f/255.0f,1.0f),
   tunerFFTInBuf(NULL),
   tunerFFTOutBuf(NULL),
   tunerPlan(NULL),

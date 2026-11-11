@@ -339,6 +339,9 @@ void FurnaceGUI::doAction(int what) {
     case GUI_ACTION_WINDOW_REGISTER_VIEW:
       nextWindow=GUI_WINDOW_REGISTER_VIEW;
       break;
+    case GUI_ACTION_WINDOW_S3HS_VIS:
+      nextWindow=GUI_WINDOW_S3HS_VIS;
+      break;
     case GUI_ACTION_WINDOW_LOG:
       nextWindow=GUI_WINDOW_LOG;
       break;
@@ -455,6 +458,9 @@ void FurnaceGUI::doAction(int what) {
           break;
         case GUI_WINDOW_REGISTER_VIEW:
           regViewOpen=false;
+          break;
+        case GUI_WINDOW_S3HS_VIS:
+          s3hsVisOpen=false;
           break;
         case GUI_WINDOW_LOG:
           logOpen=false;

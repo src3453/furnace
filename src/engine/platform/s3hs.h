@@ -85,7 +85,29 @@ class DivPlatformS3HS: public DivDispatch {
   friend void putDispatchChip(void*,int);
   friend void putDispatchChan(void*,int,int);
   int volmax=0;
+  // Shadow copies of core state that the vendored engine keeps private
+  // (envelope stage/level, PCM cursor), replayed from the same register
+  // writes and sample counts so the visualizer can show them.
+  hs816::Envelope visEnv[8][8];
+  hs816::EnvelopeRates visRates[8][8];
+  unsigned int visIdle[8][8];
+  bool visGate[8];
+  unsigned long long visPcmPos[4];
+  unsigned int visPcmFrac[4];
+  unsigned int visTrigger[12];
+  void visReset();
+  void visWrite(unsigned int offset, unsigned char data);
+  void visAdvance(size_t len);
   public:
+    // Read by the GUI without locking; values are for display only.
+    const hs88::Engine* getChip() const { return chip; }
+    // Envelope stage (hs816::Envelope::Stage) and level (Q16) of an operator.
+    int getVisStage(int ch, int op) const { return (int)visEnv[ch][op].stage(); }
+    int getVisLevel(int ch, int op) const { return visEnv[ch][op].level(); }
+    // PCM/WT cursor in table/PCM samples since the last sync.
+    unsigned long long getVisPcmPos(int ch) const { return visPcmPos[ch]; }
+    // Increments on every key-on/sync of the channel.
+    unsigned int getVisTrigger(int ch) const { return visTrigger[ch]; }
     struct QueuedWrite {
     unsigned char addr;
     unsigned char val;
