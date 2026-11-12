@@ -75,9 +75,9 @@ public:
         else if (isFifo(v)) {
           // one sample per divider period; when empty, hold and retry next tick
           Fifo& f=fifo[ch];
-          if (f.count) { v.held=f.data[f.head]; f.head=(f.head+1)%FIFO_CAPACITY; f.count--; v.counter=reg[0x0e+ch]; }
+          if (f.count) { v.held=f.data[f.head]; f.head=(f.head+1)%FIFO_CAPACITY; f.count--; v.counter=reg[0x0e + ch]; }
         }
-        else { v.counter=reg[0x0e+ch]; if (!sample(ch)) done(ch,false); }
+        else { v.counter=reg[0x0e + ch]; if (!sample(ch)) done(ch,false); }
       }
       // The FIFO DAC has a fixed 0 dB gain (PLAY_VOL ignored); panning still applies.
       int gain=isFifo(v)?32768:vol[(reg[0x0d]>>(ch*4))&15];

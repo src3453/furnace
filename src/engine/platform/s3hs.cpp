@@ -299,7 +299,7 @@ void DivPlatformS3HS::tick(bool sysTick) {
       if (i>=0 && i<=7) {
         if (chan[i].std.phaseReset.val == 1){
           // gate=1 restarts envelopes and phases
-          rWrite(0x40001e+64*i,1);
+          rWrite(0x40001e + 64*i,1);
         }
       } else {
         if (chan[i].std.phaseReset.val == 1){

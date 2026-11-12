@@ -71,7 +71,7 @@ void DivPlatform34SI22::tick(bool) {
   for (int i=0;i<2;i++) {
     auto& c=chan[i]; c.std.next();
     if (c.std.vol.had) { c.outVol=(c.vol*CLAMP(c.std.vol.val,0,15))/15; updateVolume(); }
-    if (c.std.duty.had && !c.fifoMode) { c.directDivider=true; write(0x0e+i,CLAMP(c.std.duty.val,0,15)); }
+    if (c.std.duty.had && !c.fifoMode) { c.directDivider=true; write(0x0e + i,CLAMP(c.std.duty.val,0,15)); }
     if (c.std.panL.had) { c.pan=((c.std.panL.val&1)<<1)|((c.std.panL.val&2)>>1); updatePan(); }
     if (c.std.phaseReset.had && c.std.phaseReset.val && c.active) c.keyOn=true;
     if (c.keyOn && c.fifoMode) {
@@ -106,12 +106,12 @@ void DivPlatform34SI22::tick(bool) {
       double center=(s && s->centerRate>0)?s->centerRate:parent->getCenterRate();
       if (!c.rawFreq) freq*=center/(440.0*std::pow(2.0,-9.0/12.0));
       int div=(freq>0)?int(std::round(48000.0/freq))-1:15;
-      write(0x0e+i,CLAMP(div,0,15));
+      write(0x0e + i,CLAMP(div,0,15));
     }
     c.freqChanged=false;
     if (c.dividerPending) {
       // 20xx sets the hardware divider of memory playback; FIFO DAC channels stay at DIV 0.
-      if (!c.fifoMode) { c.directDivider=true; write(0x0e+i,c.pendingDivider); }
+      if (!c.fifoMode) { c.directDivider=true; write(0x0e + i,c.pendingDivider); }
       c.dividerPending=false;
     }
   }
