@@ -78,7 +78,7 @@ void DivPlatform34SI22::tick(bool) {
       // FIFO DAC: stop (empties the FIFO), PLAY_FORMAT 5, DIV 0, restart.
       controlWrite(i,0);
       unsigned f=chip.read(0x21), shift=i*4; write(0x21,(f&~(7u<<shift))|(5u<<shift));
-      write(0x0e+i,0);
+      write(0x0e + i,0);
       c.audPos=0; c.audSub=0; c.audDir=false; c.freqChanged=true;
       c.fifoPlaying=c.sample>=0;
       controlWrite(i,1);
