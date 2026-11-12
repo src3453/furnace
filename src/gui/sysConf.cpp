@@ -2844,6 +2844,22 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
     }
     case DIV_SYSTEM_34SI22: {
       supportsCustomRate=false;
+      int chipType=flags.getInt("chipType",0);
+      if (chipType<0 || chipType>1) chipType=0;
+      ImGui::Text(_("Chip revision:"));
+      ImGui::Indent();
+      if (ImGui::RadioButton("34SI22",chipType==0)) {
+        chipType=0;
+        altered=true;
+      }
+      if (ImGui::RadioButton(_("34SI22A (FIFO DAC)"),chipType==1)) {
+        chipType=1;
+        altered=true;
+      }
+      ImGui::Unindent();
+      if (chipType==1) {
+        ImGui::TextWrapped(_("Generic Sample instruments stream 16-bit PCM through the FIFO DAC (pitch and volume applied by the driver)."));
+      }
       bool largeSampleMemory=flags.getBool("largeSampleMemory",false);
       ImGui::Text(_("Sample memory:"));
       ImGui::Indent();
@@ -2854,7 +2870,10 @@ bool FurnaceGUI::drawSysConf(int chan, int sysPos, DivSystem type, DivConfig& fl
         largeSampleMemory=true; altered=true; mustRender=true;
       }
       ImGui::Unindent();
-      if (altered) e->lockSave([&]() { flags.set("largeSampleMemory",largeSampleMemory); });
+      if (altered) e->lockSave([&]() {
+        flags.set("chipType",chipType);
+        flags.set("largeSampleMemory",largeSampleMemory);
+      });
       break;
     }
     case DIV_SYSTEM_S3W2: {

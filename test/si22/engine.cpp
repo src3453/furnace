@@ -93,8 +93,52 @@ int main() {
   engine.song.sample.pop_back(); engine.song.sampleLen=1; delete large;
   engine.song.systemFlags[0].set("largeSampleMemory",1);
   dispatch.quit();
+  {
+    // 34SI22A: a Generic Sample (AMIGA) instrument streams 16-bit PCM through the FIFO DAC,
+    // resampled and scaled by the platform; 34SI22 instruments still play from memory.
+    DivConfig a; a.set("chipType",1);
+    static DivPlatform34SI22 fifo; fifo.init(&engine,2,48000,a); fifo.renderSamples(0);
+    assert(fifo.getRegisterPoolSize()==0x2d);
+    auto* generic=new DivInstrument; generic->type=DIV_INS_AMIGA; generic->amiga.initSample=0;
+    engine.song.ins.push_back(generic); engine.song.insLen=2;
+    sample->centerRate=48000;
+    fifo.dispatch(DivCommand(DIV_CMD_INSTRUMENT,0,1)); fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); fifo.tick();
+    auto* r=fifo.getRegisterPool();
+    assert((r[0x21]&7)==5 && r[0x0e]==0 && (r[0x0d]&15)==15 && (r[0x0c]&3)==1);
+    short fl[6],fr[6]; short* fo[]={fl,fr}; fifo.acquire(fo,6);
+    const short plain[6]={0x1234,-1200,2000,0,0,0};
+    for (int i=0;i<6;i++) assert(fl[i]==plain[i] && fr[i]==fl[i]);
+    fifo.dispatch(DivCommand(DIV_CMD_VOLUME,0,5)); fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); fifo.tick();
+    assert((fifo.getRegisterPool()[0x0d]&15)==15); // the chip stays at 0 dB
+    fifo.acquire(fo,2); assert(fl[0]==0x1234*5/15 && fl[1]==-1200*5/15);
+    fifo.dispatch(DivCommand(DIV_CMD_VOLUME,0,15));
+    sample->centerRate=24000; // half the pitch: every sample twice
+    fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); fifo.tick(); fifo.acquire(fo,6);
+    const short half[6]={0x1234,0x1234,-1200,-1200,2000,2000};
+    for (int i=0;i<6;i++) assert(fl[i]==half[i]);
+    sample->centerRate=48000; sample->loop=true; sample->loopMode=DIV_SAMPLE_LOOP_FORWARD;
+    sample->loopStart=1; sample->loopEnd=3;
+    fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); fifo.tick(); fifo.acquire(fo,6);
+    const short looped[6]={0x1234,-1200,2000,-1200,2000,-1200};
+    for (int i=0;i<6;i++) assert(fl[i]==looped[i]);
+    fifo.muteChannel(0,true); fifo.acquire(fo,1); assert(fl[0]==0); fifo.muteChannel(0,false);
+    fifo.dispatch(DivCommand(DIV_CMD_NOTE_OFF,0,0)); fifo.tick();
+    assert((fifo.getRegisterPool()[0x0c]&3)==0 && fifo.getRegisterPool()[0x29]==0 && fifo.getRegisterPool()[0x2a]==0);
+    fifo.acquire(fo,1); assert(fl[0]==0);
+    sample->loop=false;
+    fifo.dispatch(DivCommand(DIV_CMD_INSTRUMENT,0,0)); fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); fifo.tick();
+    assert((fifo.getRegisterPool()[0x21]&7)==1); // DIV_INS_34SI22: memory playback (PCM16)
+    fifo.quit();
+    // On the 34SI22 a Generic Sample instrument also plays from memory.
+    static DivPlatform34SI22 base; base.init(&engine,2,48000,DivConfig()); base.renderSamples(0);
+    base.dispatch(DivCommand(DIV_CMD_INSTRUMENT,0,1)); base.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); base.tick();
+    assert((base.getRegisterPool()[0x21]&7)==1);
+    base.quit();
+    engine.song.ins.pop_back(); engine.song.insLen=1; delete generic;
+    engine.song.systemFlags[0].set("chipType",1);
+  }
   auto* saved=engine.saveFur(); assert(saved); size_t size=saved->size(); auto* data=new unsigned char[size]; memcpy(data,saved->getFinalBuf(),size); saved->finish(); delete saved;
-  static DivEngine reload; assert(reload.load(data,size)); assert(reload.song.system[0]==DIV_SYSTEM_34SI22); assert(reload.song.systemFlags[0].getBool("largeSampleMemory",false)); assert(reload.song.ins[0]->type==DIV_INS_34SI22); assert(reload.song.ins[0]->amiga.initSample==0); assert(reload.song.ins[0]->std.dutyMacro.len==2 && reload.song.ins[0]->std.dutyMacro.val[1]==4);
-  puts("34SI22 engine playback and .fur round trip passed");
+  static DivEngine reload; assert(reload.load(data,size)); assert(reload.song.system[0]==DIV_SYSTEM_34SI22); assert(reload.song.systemFlags[0].getBool("largeSampleMemory",false)); assert(reload.song.systemFlags[0].getInt("chipType",0)==1); assert(reload.song.ins[0]->type==DIV_INS_34SI22); assert(reload.song.ins[0]->amiga.initSample==0); assert(reload.song.ins[0]->std.dutyMacro.len==2 && reload.song.ins[0]->std.dutyMacro.val[1]==4);
+  puts("34SI22/34SI22A engine playback and .fur round trip passed");
 }
 

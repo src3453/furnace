@@ -9,8 +9,14 @@ class DivPlatform34SI22: public DivDispatch, private Si22Playback::Memory {
     int sample=-1; unsigned char pan=3;
     bool directDivider=false, dividerPending=false;
     unsigned char pendingDivider=0;
+    // 34SI22A FIFO DAC: an AMIGA (Generic Sample) instrument is resampled and
+    // scaled here, like Generic PCM DAC, and streamed as 16-bit PCM at 48 kHz.
+    bool fifoMode=false, fifoPlaying=false, audDir=false;
+    int audPos=0;
+    unsigned audSub=0, step=0;
     Channel(): SharedChannel(15,true) {}
   } chan[2];
+  bool variantA=false;
   DivDispatchOscBuffer* osc[2]={};
   bool muted[2]={};
   std::vector<uint8_t> memory;
@@ -28,6 +34,7 @@ class DivPlatform34SI22: public DivDispatch, private Si22Playback::Memory {
   void updateVolume();
   void updatePan();
   void address(unsigned reg, unsigned value);
+  int16_t fifoSample(Channel& c);
 public:
   DivPlatform34SI22(): chip(*this) {}
   void acquire(short** buf, size_t len) override;
@@ -45,7 +52,7 @@ public:
   DivMacroInt* getChanMacroInt(int ch) override { return &chan[ch].std; }
   DivDispatchOscBuffer* getOscBuffer(int ch) override { return osc[ch]; }
   unsigned char* getRegisterPool() override;
-  int getRegisterPoolSize() override { return 0x29; }
+  int getRegisterPoolSize() override { return variantA?0x2d:0x29; }
   void poke(unsigned a,unsigned short v) override { write(a,v); }
   void poke(std::vector<DivRegWrite>& writes) override;
   const void* getSampleMem(int index) override { return index==0?memory.data():nullptr; }
@@ -55,6 +62,6 @@ public:
   const DivMemoryComposition* getMemCompo(int index) override { return index==0?&composition:nullptr; }
   void renderSamples(int sysID) override;
 private:
-  unsigned char registerPool[0x29]={};
+  unsigned char registerPool[0x2d]={};
 };
 #endif

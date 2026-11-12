@@ -1,5 +1,9 @@
 // 34SI22 playback engine. Memory addresses are 24-bit byte offsets.
 // The host owns memory and decides how out-of-range addresses are decoded.
+// With setVariantA(true) it is the 34SI22A (SGU v3.2): writes to REC_x_ADC push
+// 16-bit samples into a 2048-sample FIFO per playback channel, FIFO_x_COUNT
+// (0x29..0x2C) reads the fill level, and PLAY_FORMAT 5 plays the FIFO at
+// 48000 / (divider + 1) Hz (CPT32 doc/spec_34SI22.md section 11).
 #ifndef FURNACE_34SI22_H
 #define FURNACE_34SI22_H
 #include <algorithm>
@@ -14,9 +18,17 @@ public:
     virtual ~Memory() = default;
     virtual uint8_t read(uint32_t address) const = 0;
   };
+  static constexpr unsigned FIFO_CAPACITY=2048;
   explicit Si22Playback(const Memory& m): memory(m) { reset(); }
-  void reset() { reg.fill(0); voice = {}; channelOut = {}; adc = {}; }
+  void reset() { reg.fill(0); voice = {}; channelOut = {}; adc = {}; fifo = {}; }
+  void setVariantA(bool a) { variantA=a; if (!a) fifo={}; }
+  bool isVariantA() const { return variantA; }
+  unsigned fifoCount(unsigned ch) const { return fifo[ch].count; }
   uint8_t read(unsigned a) const {
+    if (variantA && a >= 0x29 && a < 0x2d) {
+      unsigned count=fifo[(a-0x29)/2].count;
+      return ((a-0x29)&1)?uint8_t(count):uint8_t(count>>8);
+    }
     if (a >= 0x29) return 0;
     if (a >= 0x25) {
       uint16_t sample=uint16_t(adc[(a-0x25)/2]);
@@ -26,7 +38,13 @@ public:
     return reg[a];
   }
   void write(unsigned a, uint8_t value) {
-    if (a >= 0x25) return;
+    if (a >= 0x25) {
+      if (!variantA || a > 0x28) return;
+      Fifo& f=fifo[(a-0x25)/2];
+      if (!((a-0x25)&1)) { f.high=value; return; }
+      if (f.count<FIFO_CAPACITY) { f.data[(f.head+f.count)%FIFO_CAPACITY]=int16_t((uint16_t(f.high)<<8)|value); f.count++; }
+      return;
+    }
     if (a==0x0e || a==0x0f || a==0x1e || a==0x1f) value &= 0x0f;
     if (a == 0x20) { reg[a]=(value&3)|(reg[a]&~(value&0xf4)&0xf4); return; }
     if (a != 0x0c) { reg[a]=value; return; }
@@ -34,7 +52,10 @@ public:
     for (unsigned ch=0; ch<2; ch++) {
       unsigned cmd=(value>>(ch*2))&3;
       Voice& v=voice[ch];
-      if (!cmd) { v.status=0; v.held=0; }
+      if (!cmd) {
+        if (v.status==1 && isFifo(v)) { fifo[ch].count=0; fifo[ch].head=0; }
+        v.status=0; v.held=0;
+      }
       else if (cmd==1 && (v.status==0 || v.status==3)) {
         v=Voice(); v.status=1;
         v.start=address(ch*6); v.stop=address(ch*6+3); v.pos=v.start;
@@ -51,9 +72,16 @@ public:
       Voice& v=voice[ch];
       if (v.status==1) {
         if (v.counter) --v.counter;
+        else if (isFifo(v)) {
+          // one sample per divider period; when empty, hold and retry next tick
+          Fifo& f=fifo[ch];
+          if (f.count) { v.held=f.data[f.head]; f.head=(f.head+1)%FIFO_CAPACITY; f.count--; v.counter=reg[0x0e+ch]; }
+        }
         else { v.counter=reg[0x0e+ch]; if (!sample(ch)) done(ch,false); }
       }
-      int scaled=(int(v.held)*vol[(reg[0x0d]>>(ch*4))&15])>>15;
+      // The FIFO DAC has a fixed 0 dB gain (PLAY_VOL ignored); panning still applies.
+      int gain=isFifo(v)?32768:vol[(reg[0x0d]>>(ch*4))&15];
+      int scaled=(int(v.held)*gain)>>15;
       channelOut[ch]=int16_t(scaled);
       if (!(reg[0x0c]&(0x10<<(ch*2)))) out[0]+=scaled;
       if (!(reg[0x0c]&(0x20<<(ch*2)))) out[1]+=scaled;
@@ -69,7 +97,15 @@ private:
     sqv4::Header header;
     sqv4::State state;
   };
+  struct Fifo {
+    std::array<int16_t,FIFO_CAPACITY> data{};
+    unsigned head=0, count=0;
+    uint8_t high=0;
+  };
   const Memory& memory;
+  bool variantA=false;
+  std::array<Fifo,2> fifo{};
+  bool isFifo(const Voice& v) const { return variantA && v.format==5; }
   std::array<uint8_t,0x25> reg{};
   std::array<Voice,2> voice{};
   std::array<int16_t,2> channelOut{};

@@ -4,7 +4,7 @@
 #include <cstring>
 
 void DivPlatform34SI22::write(unsigned a,unsigned v) {
-  if (skipRegisterWrites || a>=0x29) return;
+  if (skipRegisterWrites || a>=unsigned(getRegisterPoolSize())) return;
   chip.write(a,v); registerPool[a]=chip.read(a);
   if (dumpWrites) addWrite(a,v);
 }
@@ -13,7 +13,40 @@ void DivPlatform34SI22::controlWrite(unsigned ch,unsigned cmd) {
   write(0x0c,control|commands);
 }
 void DivPlatform34SI22::address(unsigned a,unsigned v) { write(a,v>>16); write(a+1,v>>8); write(a+2,v); }
-void DivPlatform34SI22::updateVolume() { write(0x0d,(muted[0]?0:chan[0].outVol)|(muted[1]?0:chan[1].outVol)<<4); }
+void DivPlatform34SI22::updateVolume() {
+  // The FIFO DAC ignores PLAY_VOL (fixed 0 dB); its channels scale the PCM they stream.
+  int v[2];
+  for (int i=0;i<2;i++) v[i]=muted[i]?0:(chan[i].fifoMode?15:chan[i].outVol);
+  write(0x0d,v[0]|(v[1]<<4));
+}
+
+// Next 16-bit FIFO sample of an AMIGA instrument: no interpolation, loops as in
+// Generic PCM DAC, linear volume 0..15. 0 after a one-shot sample ends.
+int16_t DivPlatform34SI22::fifoSample(Channel& c) {
+  DivSample* s=(c.sample>=0 && c.sample<parent->song.sampleLen)?parent->getSample(c.sample):NULL;
+  if (s==NULL || s->samples<=0 || s->data16==NULL) { c.sample=-1; return 0; }
+  int out=(c.audPos>=0 && c.audPos<(int)s->samples)?s->data16[c.audPos]:0;
+  c.audSub+=c.step;
+  while (c.audSub>=0x10000) {
+    c.audSub-=0x10000;
+    c.audPos+=c.audDir?-1:1;
+    if (s->isLoopable()) {
+      if (c.audDir) {
+        if (c.audPos<s->loopStart) {
+          if (s->loopMode==DIV_SAMPLE_LOOP_BACKWARD) c.audPos=s->loopEnd-1-(s->loopStart-c.audPos);
+          else { c.audPos=s->loopStart+(s->loopStart-c.audPos); c.audDir=false; }
+        }
+      } else if (c.audPos>=s->loopEnd) {
+        if (s->loopMode==DIV_SAMPLE_LOOP_FORWARD) c.audPos=(c.audPos+s->loopStart)-s->loopEnd;
+        else { c.audPos=s->loopEnd-1-(c.audPos-s->loopEnd+1); c.audDir=true; }
+      }
+    } else if (c.audPos>=(int)s->samples) {
+      c.sample=-1;
+      break;
+    }
+  }
+  return int16_t((out*CLAMP(c.outVol,0,15))/15);
+}
 void DivPlatform34SI22::updatePan() {
   control=0;
   for (int i=0;i<2;i++) { if (!(chan[i].pan&1)) control|=0x10<<(i*2); if (!(chan[i].pan&2)) control|=0x20<<(i*2); }
@@ -22,6 +55,13 @@ void DivPlatform34SI22::updatePan() {
 void DivPlatform34SI22::acquire(short** buf,size_t len) {
   for (int c=0;c<2;c++) osc[c]->begin(len);
   for (size_t i=0;i<len;i++) {
+    // The driver keeps the FIFO fed one sample ahead (DIV 0: one sample per tick).
+    for (int c=0;c<2;c++) {
+      if (!chan[c].fifoPlaying || chip.fifoCount(c)) continue;
+      int16_t pcm=fifoSample(chan[c]);
+      uint16_t v=muted[c]?0:uint16_t(pcm); // PLAY_VOL cannot mute the FIFO DAC
+      chip.write(0x25+c*2,v>>8); chip.write(0x26+c*2,v&0xff);
+    }
     auto out=chip.tick(); buf[0][i]=out[0]; buf[1][i]=out[1];
     for (int c=0;c<2;c++) osc[c]->putSample(i,chip.channelOutput(c));
   }
@@ -31,9 +71,20 @@ void DivPlatform34SI22::tick(bool) {
   for (int i=0;i<2;i++) {
     auto& c=chan[i]; c.std.next();
     if (c.std.vol.had) { c.outVol=(c.vol*CLAMP(c.std.vol.val,0,15))/15; updateVolume(); }
-    if (c.std.duty.had) { c.directDivider=true; write(0x0e+i,CLAMP(c.std.duty.val,0,15)); }
+    if (c.std.duty.had && !c.fifoMode) { c.directDivider=true; write(0x0e+i,CLAMP(c.std.duty.val,0,15)); }
     if (c.std.panL.had) { c.pan=((c.std.panL.val&1)<<1)|((c.std.panL.val&2)>>1); updatePan(); }
     if (c.std.phaseReset.had && c.std.phaseReset.val && c.active) c.keyOn=true;
+    if (c.keyOn && c.fifoMode) {
+      // FIFO DAC: stop (empties the FIFO), PLAY_FORMAT 5, DIV 0, restart.
+      controlWrite(i,0);
+      unsigned f=chip.read(0x21), shift=i*4; write(0x21,(f&~(7u<<shift))|(5u<<shift));
+      write(0x0e+i,0);
+      c.audPos=0; c.audSub=0; c.audDir=false; c.freqChanged=true;
+      c.fifoPlaying=c.sample>=0;
+      controlWrite(i,1);
+      updateVolume();
+      c.keyOn=false;
+    }
     if (c.keyOn) {
       controlWrite(i,0);
       if (c.sample>=0 && c.sample<32768 && loaded[c.sample]) {
@@ -43,8 +94,14 @@ void DivPlatform34SI22::tick(bool) {
       }
       c.keyOn=false;
     }
-    if (c.keyOff) { controlWrite(i,0); c.keyOff=false; }
-    if (c.freqChanged && !c.directDivider && !c.dividerPending) {
+    if (c.keyOff) { controlWrite(i,0); c.fifoPlaying=false; c.keyOff=false; }
+    if (c.freqChanged && c.fifoMode) {
+      // Resampling step relative to the 48 kHz FIFO rate (16.16).
+      double freq=c.calcFreq(); auto* s=parent->getSample(c.sample);
+      double center=(s && s->centerRate>0)?s->centerRate:parent->getCenterRate();
+      if (!c.rawFreq) freq*=center/(440.0*std::pow(2.0,-9.0/12.0));
+      c.step=(freq>0)?unsigned(std::min(freq*65536.0/48000.0,16777215.0)):0;
+    } else if (c.freqChanged && !c.directDivider && !c.dividerPending) {
       double freq=c.calcFreq(); auto* s=parent->getSample(c.sample);
       double center=(s && s->centerRate>0)?s->centerRate:parent->getCenterRate();
       if (!c.rawFreq) freq*=center/(440.0*std::pow(2.0,-9.0/12.0));
@@ -52,7 +109,11 @@ void DivPlatform34SI22::tick(bool) {
       write(0x0e+i,CLAMP(div,0,15));
     }
     c.freqChanged=false;
-    if (c.dividerPending) { c.directDivider=true; write(0x0e+i,c.pendingDivider); c.dividerPending=false; }
+    if (c.dividerPending) {
+      // 20xx sets the hardware divider of memory playback; FIFO DAC channels stay at DIV 0.
+      if (!c.fifoMode) { c.directDivider=true; write(0x0e+i,c.pendingDivider); }
+      c.dividerPending=false;
+    }
   }
 }
 int DivPlatform34SI22::dispatch(DivCommand cmd) {
@@ -60,6 +121,8 @@ int DivPlatform34SI22::dispatch(DivCommand cmd) {
   switch (cmd.cmd) {
     case DIV_CMD_NOTE_ON: {
       DivInstrument* ins=parent->getIns(c.ins,DIV_INS_34SI22);
+      bool fifo=variantA && ins->type==DIV_INS_AMIGA;
+      if (fifo!=c.fifoMode) { c.fifoMode=fifo; updateVolume(); }
       if (cmd.value!=DIV_NOTE_NULL) { c.directDivider=false; c.sample=ins->amiga.getSample(cmd.value); c.sampleNote=cmd.value; c.note=ins->amiga.getFreq(cmd.value); c.sampleNoteDelta=c.note-c.sampleNote; c.baseFreq=c.calcBaseFreq(c.note); c.freqChanged=true; }
       c.macroInit(ins); if (!c.std.vol.will) c.outVol=c.vol;
       c.active=true; c.keyOn=true; c.keyOff=false; updateVolume(); break;
@@ -90,6 +153,10 @@ void DivPlatform34SI22::reset() {
 }
 void DivPlatform34SI22::notifyPitchTable(int) { pitchTable.init(parent->song.tuning,48000,48000.0,0xffff,false,parent->song.compatFlags.linearPitch); }
 void DivPlatform34SI22::setFlags(const DivConfig& flags) {
+  // chipType 1: 34SI22A (FIFO DAC, SGU v3.2); 0: 34SI22.
+  variantA=flags.getInt("chipType",0)==1;
+  chip.setVariantA(variantA);
+  if (!variantA) for (auto& c:chan) { c.fifoMode=false; c.fifoPlaying=false; }
   size_t capacity=flags.getBool("largeSampleMemory",false)?0x1000000:0x100000;
   if (memory.size()!=capacity) {
     memory.resize(capacity);
@@ -102,7 +169,7 @@ void DivPlatform34SI22::setFlags(const DivConfig& flags) {
 }
 void DivPlatform34SI22::notifyInsDeletion(void* ins) { for (auto& c:chan) c.std.notifyInsDeletion((DivInstrument*)ins); }
 void DivPlatform34SI22::muteChannel(int ch,bool mute) { muted[ch]=mute; updateVolume(); }
-unsigned char* DivPlatform34SI22::getRegisterPool() { for (int i=0;i<0x29;i++) registerPool[i]=chip.read(i); return registerPool; }
+unsigned char* DivPlatform34SI22::getRegisterPool() { for (int i=0;i<getRegisterPoolSize();i++) registerPool[i]=chip.read(i); return registerPool; }
 void DivPlatform34SI22::poke(std::vector<DivRegWrite>& list) { for (auto& w:list) write(w.addr,w.val); }
 void DivPlatform34SI22::renderSamples(int sysID) {
   std::fill(memory.begin(),memory.end(),0); memset(loaded,0,sizeof(loaded)); used=0; composition=DivMemoryComposition(); composition.name="Sample RAM";

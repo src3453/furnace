@@ -2739,7 +2739,7 @@ void DivEngine::registerSystems() {
   sysDefs[DIV_SYSTEM_34SI22]=new DivSysDef(
     _("34SI22 (S3SP)"), NULL, 0xf9, 0, 2, 2, 2,
     false, true, 0, false, (1U<<DIV_SAMPLE_DEPTH_8BIT)|(1U<<DIV_SAMPLE_DEPTH_16BIT)|(1U<<DIV_SAMPLE_DEPTH_SQV4H)|(1U<<DIV_SAMPLE_DEPTH_SQV4L)|(1U<<DIV_SAMPLE_DEPTH_SQV4L_PLUS), 0, 0,
-    _("src3453's (yet yet) another fantasy sound chip. Two-channel PCM and SQV4 one-shot playback interface. Used in CPT32 SGU v3.x or later."),
+    _("src3453's (yet yet) another fantasy sound chip. Two-channel PCM and SQV4 one-shot playback interface. Used in CPT32 SGU v3.x or later. The 34SI22A revision (SGU v3.2) adds a FIFO DAC: Generic Sample instruments play as 16-bit PCM with driver-side pitch and volume."),
     DivChanDefFunc({
       DivChanDef(_("Channel 1"), "CH1", DIV_CH_PCM, DIV_INS_34SI22, DIV_INS_AMIGA),
       DivChanDef(_("Channel 2"), "CH2", DIV_CH_PCM, DIV_INS_34SI22, DIV_INS_AMIGA)

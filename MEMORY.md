@@ -132,3 +132,20 @@ wave audio, repeat resets, core Slew semantics and existing SGUB playback.
   gives 32/64/128, otherwise one fixed size; S3W2 with chipType 2 lists 256/128/64/32.
 - Real-engine check: build a FUR fixture (FLAG element type 2 with `chipType=2`) and render with
   `-output`; fit a sine to the WAV. A running furnace.exe blocks relinking (LNK1104).
+
+## 34SI22A FIFO DAC (SGU v3.2) (2026-11-12)
+- `chipType` on DIV_SYSTEM_34SI22: 0 = 34SI22, 1 = 34SI22A (spec: CPT32 `doc/spec_34SI22.md` section 11,
+  `doc/spec_SGU_v3_2.md`). The 34SI22A has a 2048-sample FIFO per playback channel: REC_x_ADC writes push
+  (high byte 0x25/0x27 latches, low byte 0x26/0x28 pushes), FIFO_x_COUNT is 0x29..0x2C (register pool 0x2d),
+  PLAY_FORMAT 5 plays it at 48000/(DIV+1) with a fixed 0 dB gain (PLAY_VOL ignored, panning applies),
+  underrun holds and retries every tick, CTRL=0 on a running FIFO channel empties it.
+- On the 34SI22A a Generic Sample (DIV_INS_AMIGA) instrument uses the FIFO: note-on stops the channel,
+  sets format 5 and DIV 0 and restarts; acquire() resamples the 16-bit sample like Generic PCM DAC (no
+  interpolation, loops), scales it by the channel volume (linear 0..15) and pushes one sample per tick
+  directly into the chip model (not through write(), so no 96k writes/s in the register log). Mute pushes 0
+  because PLAY_VOL cannot mute the FIFO. 20xx and the duty macro (hardware divider) are ignored there.
+  DIV_INS_34SI22 instruments and the plain 34SI22 keep memory playback.
+- Tests: `test/si22/playback.cpp` (CTest; also builds with plain `cl /std:c++17 /UNDEBUG`) and
+  `python test/si22/msvc_engine.py build` from a VS developer shell. While furnace.exe runs, its relink fails
+  (LNK1104) and leaves `furnace.tlog/link.command.1.tlog` empty, which breaks msvc_engine.py: relink once
+  with `cmake --build build --config Release --target furnace -- /p:OutDir=<other dir>\` to regenerate it.
