@@ -1,5 +1,6 @@
 #include "../../src/engine/engine.h"
 #include "../../src/engine/platform/34si22.h"
+#include "../../src/engine/platform/pcmdac.h"
 #include <cassert>
 #include <cstdio>
 #ifdef main
@@ -102,23 +103,23 @@ int main() {
     auto* generic=new DivInstrument; generic->type=DIV_INS_AMIGA; generic->amiga.initSample=0;
     engine.song.ins.push_back(generic); engine.song.insLen=2;
     sample->centerRate=48000;
-    fifo.dispatch(DivCommand(DIV_CMD_INSTRUMENT,0,1)); fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); fifo.tick();
+    fifo.dispatch(DivCommand(DIV_CMD_INSTRUMENT,0,1)); fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,DIV_NOTE_RAW_FLAG|65536)); fifo.tick();
     auto* r=fifo.getRegisterPool();
     assert((r[0x21]&7)==5 && r[0x0e]==0 && (r[0x0d]&15)==15 && (r[0x0c]&3)==1);
     short fl[6],fr[6]; short* fo[]={fl,fr}; fifo.acquire(fo,6);
     const short plain[6]={0x1234,-1200,2000,0,0,0};
     for (int i=0;i<6;i++) assert(fl[i]==plain[i] && fr[i]==fl[i]);
-    fifo.dispatch(DivCommand(DIV_CMD_VOLUME,0,5)); fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); fifo.tick();
+    fifo.dispatch(DivCommand(DIV_CMD_VOLUME,0,5)); fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,DIV_NOTE_RAW_FLAG|65536)); fifo.tick();
     assert((fifo.getRegisterPool()[0x0d]&15)==15); // the chip stays at 0 dB
     fifo.acquire(fo,2); assert(fl[0]==0x1234*5/15 && fl[1]==-1200*5/15);
     fifo.dispatch(DivCommand(DIV_CMD_VOLUME,0,15));
-    sample->centerRate=24000; // half the pitch: every sample twice
-    fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); fifo.tick(); fifo.acquire(fo,6);
+    sample->centerRate=24000; fifo.notifyPitchTable(); // raw notes ignore center rate
+    fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,DIV_NOTE_RAW_FLAG|32768)); fifo.tick(); fifo.acquire(fo,6);
     const short half[6]={0x1234,0x1234,-1200,-1200,2000,2000};
     for (int i=0;i<6;i++) assert(fl[i]==half[i]);
     sample->centerRate=48000; sample->loop=true; sample->loopMode=DIV_SAMPLE_LOOP_FORWARD;
     sample->loopStart=1; sample->loopEnd=3;
-    fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); fifo.tick(); fifo.acquire(fo,6);
+    fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,DIV_NOTE_RAW_FLAG|65536)); fifo.tick(); fifo.acquire(fo,6);
     const short looped[6]={0x1234,-1200,2000,-1200,2000,-1200};
     for (int i=0;i<6;i++) assert(fl[i]==looped[i]);
     fifo.muteChannel(0,true); fifo.acquire(fo,1); assert(fl[0]==0); fifo.muteChannel(0,false);
@@ -128,6 +129,67 @@ int main() {
     sample->loop=false;
     fifo.dispatch(DivCommand(DIV_CMD_INSTRUMENT,0,0)); fifo.dispatch(DivCommand(DIV_CMD_NOTE_ON,0,48)); fifo.tick();
     assert((fifo.getRegisterPool()[0x21]&7)==1); // DIV_INS_34SI22: memory playback (PCM16)
+    // Compare actual dispatches at the same output rate, with every pitch mode.
+    static DivPlatformPCMDAC pcm;
+    DivConfig pcmFlags; pcmFlags.set("rate",48000);
+    pcm.init(&engine,1,48000,pcmFlags);
+    auto both=[&](DivCommand command) { fifo.dispatch(command); pcm.dispatch(command); };
+    auto tickBoth=[&]() {
+      fifo.tick(); pcm.tick();
+      auto* f=fifo.getChanState(0); auto* p=pcm.getChanState(0);
+      assert(f->baseFreq==p->baseFreq && f->freq==p->freq);
+      assert(f->pitch2==p->pitch2 && f->arpOff==p->arpOff && f->fixedArp==p->fixedArp);
+    };
+    both(DivCommand(DIV_CMD_INSTRUMENT,0,1));
+    for (float tuning: {440.0f,480.0f}) for (int linear: {0,1,2}) for (bool oldArp: {false,true}) for (bool oldCenter: {false,true}) {
+      engine.song.tuning=tuning;
+      engine.song.compatFlags.linearPitch=linear;
+      engine.song.compatFlags.oldArpStrategy=oldArp;
+      engine.song.compatFlags.oldCenterRate=oldCenter;
+      for (int center: {0,8363,22050,48000}) {
+        sample->centerRate=center;
+        fifo.notifyPitchTable(); pcm.notifyPitchTable();
+        for (int note: {12,48,69,108,int(DIV_NOTE_RAW_FLAG|32768),int(DIV_NOTE_RAW_FLAG|65536)}) {
+          generic->std.arpMacro.len=0; generic->std.pitchMacro.len=0;
+          both(DivCommand(DIV_CMD_PITCH,0,0));
+          both(DivCommand(DIV_CMD_NOTE_ON,0,note)); tickBoth();
+          for (int pitch: {-128,0,128}) { both(DivCommand(DIV_CMD_PITCH,0,pitch)); tickBoth(); }
+        }
+      }
+      for (bool relative: {false,true}) {
+        generic->std.arpMacro.len=3;
+        generic->std.arpMacro.val[0]=0; generic->std.arpMacro.val[1]=7; generic->std.arpMacro.val[2]=0x40000000|12;
+        generic->std.pitchMacro.len=3; generic->std.pitchMacro.mode=relative;
+        generic->std.pitchMacro.val[0]=64; generic->std.pitchMacro.val[1]=-32; generic->std.pitchMacro.val[2]=128;
+        generic->amiga.useNoteMap=true;
+        generic->amiga.noteMap[48].map=0; generic->amiga.noteMap[48].freq=55;
+        both(DivCommand(DIV_CMD_NOTE_ON,0,48)); tickBoth();
+        both(DivCommand(DIV_CMD_LEGATO,0,50)); tickBoth();
+        tickBoth();
+        engine.song.compatFlags.resetMacroOnPorta=true;
+        both(DivCommand(DIV_CMD_PRE_PORTA,0,1,1));
+        for (int i=0;i<8;i++) { both(DivCommand(DIV_CMD_NOTE_PORTA,0,64,60)); tickBoth(); }
+        both(DivCommand(DIV_CMD_NOTE_ON,0,DIV_NOTE_NULL)); tickBoth();
+        generic->amiga.useNoteMap=false;
+      }
+    }
+    generic->std.arpMacro.len=0; generic->std.pitchMacro.len=0;
+    // Check the calculated step reaches the FIFO resampler in rendered audio.
+    sample->centerRate=22050; sample->loop=true; sample->loopStart=0; sample->loopEnd=4;
+    sample->loopMode=DIV_SAMPLE_LOOP_FORWARD;
+    fifo.notifyPitchTable(); pcm.notifyPitchTable();
+    both(DivCommand(DIV_CMD_PITCH,0,0));
+    both(DivCommand(DIV_CMD_NOTE_ON,0,48)); tickBoth();
+    short renderedL[4096],renderedR[4096]; short* rendered[]={renderedL,renderedR};
+    fifo.acquire(rendered,4096);
+    unsigned phase=0;
+    for (int i=0;i<4096;i++) {
+      assert(renderedL[i]==sample->data16[(phase>>16)%4]);
+      assert(renderedR[i]==renderedL[i]);
+      phase+=pcm.getChanState(0)->freq;
+    }
+    sample->loop=false;
+    pcm.quit();
     fifo.quit();
     // On the 34SI22 a Generic Sample instrument also plays from memory.
     static DivPlatform34SI22 base; base.init(&engine,2,48000,DivConfig()); base.renderSamples(0);

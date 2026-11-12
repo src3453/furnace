@@ -149,3 +149,16 @@ wave audio, repeat resets, core Slew semantics and existing SGUB playback.
   `python test/si22/msvc_engine.py build` from a VS developer shell. While furnace.exe runs, its relink fails
   (LNK1104) and leaves `furnace.tlog/link.command.1.tlog` empty, which breaks msvc_engine.py: relink once
   with `cmake --build build --config Release --target furnace -- /p:OutDir=<other dir>\` to regenerate it.
+
+- FIFO pitch now uses a separate DivPitchTableManager with the same 8.16 units,
+  sample center-rate reference (8372/8363), limits and tuning as Generic PCM DAC.
+  Do not convert integer Hz to a resampling step: that loses precision and
+  changes non-linear pitch/portamento units. Raw notes already specify a step.
+  FIFO tick handles arp and pitch macros; legato, pre-porta macro reset and
+  null-note sample-map refresh follow Generic PCM DAC. Memory mode keeps its
+  original Hz table and hardware divider behavior.
+- POSIX Ninja builds can run `python3 test/si22/ninja_engine.py build` after
+  building Furnace. The engine harness compares FIFO/Generic PCM DAC pitch
+  across linear modes, old arp/center-rate settings, tuning, sample rates,
+  raw notes, note maps, macros, legato and portamento, and checks rendered
+  FIFO sample timing as well as existing playback and FUR round trips.

@@ -70,6 +70,23 @@ void DivPlatform34SI22::acquire(short** buf,size_t len) {
 void DivPlatform34SI22::tick(bool) {
   for (int i=0;i<2;i++) {
     auto& c=chan[i]; c.std.next();
+    if (c.fifoMode) {
+      if (NEW_ARP_STRAT) {
+        c.handleArp();
+      } else if (c.std.arp.had && !c.rawFreq) {
+        if (!c.inPorta) c.baseFreq=c.calcBaseFreq(parent->calcArp(c.note,c.std.arp.val));
+        c.freqChanged=true;
+      }
+      if (c.std.pitch.had) {
+        if (c.std.pitch.mode) {
+          c.pitch2+=c.std.pitch.val;
+          CLAMP_VAR(c.pitch2,-32768,32767);
+        } else {
+          c.pitch2=c.std.pitch.val;
+        }
+        c.freqChanged=true;
+      }
+    }
     if (c.std.vol.had) { c.outVol=(c.vol*CLAMP(c.std.vol.val,0,15))/15; updateVolume(); }
     if (c.std.duty.had && !c.fifoMode) { c.directDivider=true; write(0x0e + i,CLAMP(c.std.duty.val,0,15)); }
     if (c.std.panL.had) { c.pan=((c.std.panL.val&1)<<1)|((c.std.panL.val&2)>>1); updatePan(); }
@@ -96,11 +113,10 @@ void DivPlatform34SI22::tick(bool) {
     }
     if (c.keyOff) { controlWrite(i,0); c.fifoPlaying=false; c.keyOff=false; }
     if (c.freqChanged && c.fifoMode) {
-      // Resampling step relative to the 48 kHz FIFO rate (16.16).
-      double freq=c.calcFreq(); auto* s=parent->getSample(c.sample);
-      double center=(s && s->centerRate>0)?s->centerRate:parent->getCenterRate();
-      if (!c.rawFreq) freq*=center/(440.0*std::pow(2.0,-9.0/12.0));
-      c.step=(freq>0)?unsigned(std::min(freq*65536.0/48000.0,16777215.0)):0;
+      // Use Generic PCM DAC's 8.16 pitch units directly, including raw notes.
+      c.freq=c.calcFreq();
+      if (!c.rawFreq && c.freq>16777215) c.freq=16777215;
+      c.step=c.freq;
     } else if (c.freqChanged && !c.directDivider && !c.dividerPending) {
       double freq=c.calcFreq(); auto* s=parent->getSample(c.sample);
       double center=(s && s->centerRate>0)?s->centerRate:parent->getCenterRate();
@@ -123,7 +139,17 @@ int DivPlatform34SI22::dispatch(DivCommand cmd) {
       DivInstrument* ins=parent->getIns(c.ins,DIV_INS_34SI22);
       bool fifo=variantA && ins->type==DIV_INS_AMIGA;
       if (fifo!=c.fifoMode) { c.fifoMode=fifo; updateVolume(); }
-      if (cmd.value!=DIV_NOTE_NULL) { c.directDivider=false; c.sample=ins->amiga.getSample(cmd.value); c.sampleNote=cmd.value; c.note=ins->amiga.getFreq(cmd.value); c.sampleNoteDelta=c.note-c.sampleNote; c.baseFreq=c.calcBaseFreq(c.note); c.freqChanged=true; }
+      int note=cmd.value;
+      if (note!=DIV_NOTE_NULL) {
+        c.directDivider=false;
+        c.sample=ins->amiga.getSample(note); c.sampleNote=note;
+        note=ins->amiga.getFreq(note); c.sampleNoteDelta=note-c.sampleNote;
+      } else if (fifo && c.sampleNote!=DIV_NOTE_NULL) {
+        c.sample=ins->amiga.getSample(c.sampleNote);
+        note=ins->amiga.getFreq(c.sampleNote);
+      }
+      c.pitchTable=fifo?fifoPitchTable.get(c.sample):&pitchTable;
+      if (note!=DIV_NOTE_NULL) { c.note=note; c.baseFreq=c.calcBaseFreq(note); c.freqChanged=true; }
       c.macroInit(ins); if (!c.std.vol.will) c.outVol=c.vol;
       c.active=true; c.keyOn=true; c.keyOff=false; updateVolume(); break;
     }
@@ -136,9 +162,18 @@ int DivPlatform34SI22::dispatch(DivCommand cmd) {
     case DIV_CMD_PANNING: c.pan=(cmd.value?1:0)|(cmd.value2?2:0); updatePan(); break;
     case DIV_CMD_SAMPLE_FREQ: c.pendingDivider=cmd.value&15; c.dividerPending=true; break;
     case DIV_CMD_PITCH: c.pitch=cmd.value; c.freqChanged=true; break;
-    case DIV_CMD_LEGATO: c.note=cmd.value+c.sampleNoteDelta; c.baseFreq=c.calcBaseFreq(c.note); c.freqChanged=true; break;
+    case DIV_CMD_LEGATO: {
+      // HACKY_LEGATO_MESS uses a command named c; spell it out for this channel reference.
+      bool relativeArp=!c.rawFreq && c.std.arp.will &&
+        ((c.std.arp.val&0xc0000000)==0 || (c.std.arp.val&0xc0000000)==0xc0000000) && !NEW_ARP_STRAT;
+      c.baseFreq=c.calcBaseFreq(cmd.value+c.sampleNoteDelta+((c.fifoMode && relativeArp)?c.std.arp.val:0));
+      c.note=c.fifoMode?cmd.value:cmd.value+c.sampleNoteDelta;
+      c.freqChanged=true; break;
+    }
     case DIV_CMD_NOTE_PORTA: { int dest=c.calcBaseFreq(cmd.value2+c.sampleNoteDelta); if (c.baseFreq<dest) c.baseFreq=std::min(c.baseFreq+cmd.value,dest); else c.baseFreq=std::max(c.baseFreq-cmd.value,dest); c.freqChanged=true; if (c.baseFreq==dest) { c.inPorta=false; return 2; } break; }
-    case DIV_CMD_PRE_PORTA: c.inPorta=cmd.value; break;
+    case DIV_CMD_PRE_PORTA:
+      if (c.fifoMode && c.active && cmd.value2 && parent->song.compatFlags.resetMacroOnPorta) c.macroInit(parent->getIns(c.ins,DIV_INS_AMIGA));
+      c.inPorta=cmd.value; break;
     case DIV_CMD_MACRO_OFF: c.std.mask(cmd.value,true); break;
     case DIV_CMD_MACRO_ON: c.std.mask(cmd.value,false); break;
     case DIV_CMD_MACRO_RESTART: c.std.restart(cmd.value); break;
@@ -151,12 +186,15 @@ void DivPlatform34SI22::reset() {
   for (int i=0;i<2;i++) { chan[i]=Channel(); chan[i].pitchTable=&pitchTable; chan[i].std.setEngine(parent); }
   updateVolume();
 }
-void DivPlatform34SI22::notifyPitchTable(int) { pitchTable.init(parent->song.tuning,48000,48000.0,0xffff,false,parent->song.compatFlags.linearPitch); }
+void DivPlatform34SI22::notifyPitchTable(int sample) {
+  pitchTable.init(parent->song.tuning,48000,48000.0,0xffff,false,parent->song.compatFlags.linearPitch);
+  fifoPitchTable.update<Channel>(chan,2,parent->song.tuning,48000,65536,0xffffff,false,parent->song.compatFlags.linearPitch,sample);
+}
 void DivPlatform34SI22::setFlags(const DivConfig& flags) {
   // chipType 1: 34SI22A (FIFO DAC, SGU v3.2); 0: 34SI22.
   variantA=flags.getInt("chipType",0)==1;
   chip.setVariantA(variantA);
-  if (!variantA) for (auto& c:chan) { c.fifoMode=false; c.fifoPlaying=false; }
+  if (!variantA) for (auto& c:chan) { c.fifoMode=false; c.fifoPlaying=false; c.pitchTable=&pitchTable; }
   size_t capacity=flags.getBool("largeSampleMemory",false)?0x1000000:0x100000;
   if (memory.size()!=capacity) {
     memory.resize(capacity);
@@ -186,8 +224,8 @@ void DivPlatform34SI22::renderSamples(int sysID) {
   composition.capacity=memory.size(); composition.used=used;
 }
 int DivPlatform34SI22::init(DivEngine* p,int,int,const DivConfig& flags) {
-  parent=p; dumpWrites=false; skipRegisterWrites=false; rate=48000; chipClock=48000;
+  parent=p; fifoPitchTable.init(parent); dumpWrites=false; skipRegisterWrites=false; rate=48000; chipClock=48000;
   for (int i=0;i<2;i++) { osc[i]=new DivDispatchOscBuffer; osc[i]->setRate(rate); muted[i]=false; }
   notifyPitchTable(); setFlags(flags); reset(); return 2;
 }
-void DivPlatform34SI22::quit() { for (auto* o:osc) delete o; }
+void DivPlatform34SI22::quit() { fifoPitchTable.destroy<Channel>(chan,2); for (auto* o:osc) delete o; }

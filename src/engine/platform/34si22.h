@@ -26,6 +26,7 @@ class DivPlatform34SI22: public DivDispatch, private Si22Playback::Memory {
   size_t used=0;
   DivMemoryComposition composition;
   DivPitchTable pitchTable;
+  DivPitchTableManager fifoPitchTable;
   Si22Playback chip;
   uint8_t control=0;
   uint8_t read(uint32_t a) const override { return a<memory.size()?memory[a]:0; }
@@ -45,6 +46,7 @@ public:
   void quit() override;
   void setFlags(const DivConfig&) override;
   void notifyPitchTable(int sample=-1) override;
+  unsigned int getMaxFreq(int ch) override { return chan[ch].fifoMode?0xffffff:0xffff; }
   void notifyInsDeletion(void* ins) override;
   void muteChannel(int ch,bool mute) override;
   int getOutputCount() override { return 2; }
